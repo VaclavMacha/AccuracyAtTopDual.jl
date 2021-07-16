@@ -11,14 +11,12 @@ Base.@kwdef struct TopPush{S<:Surrogate, T <: Real} <: AbstractTopPush
     state::TopPushState = TopPushState(Float32)
 end
 
-find_Δ(a::Real, b::Real, lb::Real, ub::Real) = min(max(lb, - b/a), ub)
-
 # Update rule
 function initialization!(model::TopPush, K::KernelMatrix; seed)
     Random.seed!(seed)
 
     αβ = rand(eltype(K), K.n)
-    α, β = projection(αβ[1:K.nα], αβ[(K.nα + 1):end], model.l.ϑ*model.C, 1)
+    α, β = projection(αβ[inds_α(K)], αβ[inds_β(K)], model.l.ϑ*model.C, 1)
     αβ = vcat(α, β)
 
     model.state.s = K * αβ
@@ -26,23 +24,46 @@ function initialization!(model::TopPush, K::KernelMatrix; seed)
     return
 end
 
+struct RuleTopPush{T<:Real}
+    L::T
+    Δ::T
+    num::T
+    den::T
+    Δlb::T
+    Δub::T
+    k::Int
+    l::Int
+
+    function RuleTopPush(
+        ::AbstractTopPush,
+        ::KernelMatrix,
+        num::T,
+        den::Real,
+        lb::Real,
+        ub::Real,
+        k::Int,
+        l::Int,
+    ) where T
+        
+        Δ = min(max(lb, - num/den), ub)
+        L = den*Δ^2/2 + num*Δ
+
+        return new{T}(L, Δ, num, den, lb, ub, k, l)
+    end
+end
+
 function update!(model::TopPush, K::KernelMatrix, update)
     iszero(update.Δ) && return
-    @unpack k, l, Δ, αβ_k, αβ_l = update
+    @unpack k, l, Δ = update
 
-    if k <= K.nα && l > K.nα
-        model.state.s .+= Δ .* (K[k, :] + K[l, :])
-    else
-        model.state.s .+= Δ .* (K[k, :] - K[l, :])
-    end
-    model.state.αβ[k] = αβ_k
-    model.state.αβ[l] = αβ_l
+    y = (k <= K.nα && l > K.nα) ? -1 : 1 
+    model.state.s .+= Δ .* (K[k, :] - y*K[l, :])
+    model.state.αβ[k] += Δ
+    model.state.αβ[l] -= y*Δ
     return 
 end
 
-# Hinge loss
-objective_change(::TopPush{<:Hinge}, ::KernelMatrix, a, b, Δ) = a*Δ^2/2 + b*Δ
-
+# Hinge
 function objective(model::TopPush{<:Hinge}, K::KernelMatrix)
     @unpack s, αβ = model.state
     ϑ, C = model.l.ϑ, model.C
@@ -62,56 +83,47 @@ function objective(model::TopPush{<:Hinge}, K::KernelMatrix)
     return L_primal, L_dual, L_primal - L_dual
 end
 
-
 function rule_αα(model::TopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
 
-    a = - K[k, k] + 2*K[k, l] - K[l, l]
-    b = - s[k] + s[l]
+    num = - s[k] + s[l]
+    den = - K[k, k] + 2*K[k, l] - K[l, l]
     lb = max(- αβ[k], αβ[l] - ϑ*C)
     ub = min(ϑ*C - αβ[k], αβ[l])
 
-    Δ = find_Δ(a, b, lb, ub)
-    L = objective_change(model, K, a, b, Δ)
-    return (; L, Δ, k, l, αβ_k = αβ[k] + Δ, αβ_l = αβ[l] - Δ)
+    return RuleTopPush(model, K, num, den, lb, ub, k, l)
 end
 
 function rule_αβ(model::TopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
 
-    a = - K[k, k] - 2*K[k, l] - K[l, l]
-    b = - s[k] + s[l]
+    num = - s[k] + s[l]
+    den = - K[k, k] - 2*K[k, l] - K[l, l]
     lb = max(- αβ[k], αβ[l])
     ub = ϑ*C - αβ[k]
 
-    Δ = find_Δ(a, b, lb, ub)
-    L = objective_change(model, K, a, b, Δ)
-    return (; L, Δ, k, l, αβ_k = αβ[k] + Δ, αβ_l = αβ[l] + Δ)
+    return RuleTopPush(model, K, num, den, lb, ub, k, l)
 end
 
 function rule_ββ(model::TopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
 
-    a = - K[k, k] + 2*K[k, l] - K[l, l]
-    b = - s[k] + s[l]
+    num = - s[k] + s[l]
+    den = - K[k, k] + 2*K[k, l] - K[l, l]
     lb = - αβ[k]
     ub = αβ[l]
 
-    Δ = find_Δ(a, b, lb, ub)
-    L = objective_change(model, K, a, b, Δ)
-    return (; L, Δ, k, l, αβ_k = αβ[k] + Δ, αβ_l = αβ[l] - Δ)
+    return RuleTopPush(model, K, num, den, lb, ub, k, l)
 end
 
-# Quadratic loss
-objective_change(::TopPush{<:Quadratic}, ::KernelMatrix, a, b, Δ) = a*Δ^2/2 + b*Δ
-
+# Quadratic
 function objective(model::TopPush{<:Quadratic}, K::KernelMatrix)
     @unpack s, αβ = model.state
     ϑ, C = model.l.ϑ, model.C
 
-    α = αβ[1:K.nα]
+    α = αβ[inds_α(K)]
     sα = s[inds_α(K)]
     sβ = .- s[inds_β(K)]
     
@@ -131,39 +143,33 @@ function rule_αα(model::TopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
 
-    a = - K[k, k] - 2*K[k, l] - K[l, l] - 1/(C*ϑ^2)
-    b = - s[k] + s[l] - (αβ[k] - αβ[l])/(2*C*ϑ^2)
+    num = - s[k] + s[l] - (αβ[k] - αβ[l])/(2*C*ϑ^2)
+    den = - K[k, k] - 2*K[k, l] - K[l, l] - 1/(C*ϑ^2)
     lb = - αβ[k]
     ub = αβ[l]
 
-    Δ = find_Δ(a, b, lb, ub)
-    L = objective_change(model, K, a, b, Δ)
-    return (; L, Δ, k, l, αβ_k = αβ[k] + Δ, αβ_l = αβ[l] - Δ)
+    return RuleTopPush(model, K, num, den, lb, ub, k, l)
 end
 
 function rule_αβ(model::TopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
 
-    a = - K[k, k] - 2*K[k, l] - K[l, l] - 1/(2*C*ϑ^2)
-    b = - s[k] + s[l]+ 1/ϑ - αβ[k]/(2*C*ϑ^2)
+    num = - s[k] + s[l]+ 1/ϑ - αβ[k]/(2*C*ϑ^2)
+    den = - K[k, k] - 2*K[k, l] - K[l, l] - 1/(2*C*ϑ^2)
     lb = max(- αβ[k], αβ[l])
     ub = eltype(s)(Inf)
 
-    Δ = find_Δ(a, b, lb, ub)
-    L = objective_change(model, K, a, b, Δ)
-    return (; L, Δ, k, l, αβ_k = αβ[k] + Δ, αβ_l = αβ[l] + Δ)
+    return RuleTopPush(model, K, num, den, lb, ub, k, l)
 end
 
 function rule_ββ(model::TopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
 
-    a = - K[k, k] + 2*K[k, l] - K[l, l]
-    b = - s[k] + s[l]
+    num = - s[k] + s[l]
+    den = - K[k, k] + 2*K[k, l] - K[l, l]
     lb = - αβ[k]
     ub = αβ[l]
 
-    Δ = find_Δ(a, b, lb, ub)
-    L = objective_change(model, K, a, b, Δ)
-    return (; L, Δ, k, l, αβ_k = αβ[k] + Δ, αβ_l = αβ[l] - Δ)
+    return RuleTopPush(model, K, num, den, lb, ub, k, l)
 end
