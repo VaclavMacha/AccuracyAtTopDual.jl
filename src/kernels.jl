@@ -1,20 +1,4 @@
-# Abstract toppush constructor
 abstract type KernelMatrix{T<:Real} end
-
-function KernelMatrix(
-    ::AbstractTopPush,
-    X,
-    y,
-    kernel;
-    type::Type{<:KernelMatrix} = OnFlyKernel
-)
-
-    y = BitVector(y)
-    inds_α = findall(y)
-    inds_β = findall(.~y)
-
-    return type(X, y, kernel, inds_α, inds_β)
-end
 
 Base.show(io::IO, K::KernelMatrix) = print(io, join(size(K), "x"), " kernel matrix")
 Base.eltype(::KernelMatrix{T}) where {T<:Real} = T

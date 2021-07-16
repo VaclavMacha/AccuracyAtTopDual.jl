@@ -69,8 +69,6 @@ function solve!(
         next!(bar; showvalues = vals)
     end
 
-    s = model.state.s
-    s[K.inds_αβ[(K.nα+1):end]] .*= -1
-    s = s[invperm(K.inds_αβ)]
+    s = extraxt_scores(model, K)
     return y, s, Lps, Lds
 end

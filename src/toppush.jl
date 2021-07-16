@@ -11,7 +11,6 @@ Base.@kwdef struct TopPush{S<:Surrogate, T <: Real} <: AbstractTopPush
     state::TopPushState = TopPushState(Float32)
 end
 
-# Update rule
 function initialization!(model::TopPush, K::KernelMatrix; seed)
     Random.seed!(seed)
 
@@ -22,34 +21,6 @@ function initialization!(model::TopPush, K::KernelMatrix; seed)
     model.state.s = K * αβ
     model.state.αβ = αβ
     return
-end
-
-struct RuleTopPush{T<:Real}
-    L::T
-    Δ::T
-    num::T
-    den::T
-    Δlb::T
-    Δub::T
-    k::Int
-    l::Int
-
-    function RuleTopPush(
-        ::AbstractTopPush,
-        ::KernelMatrix,
-        num::T,
-        den::Real,
-        lb::Real,
-        ub::Real,
-        k::Int,
-        l::Int,
-    ) where T
-        
-        Δ = min(max(lb, - num/den), ub)
-        L = - den*Δ^2/2 - num*Δ
-
-        return new{T}(L, Δ, num, den, lb, ub, k, l)
-    end
 end
 
 function update!(model::TopPush, K::KernelMatrix, update)
