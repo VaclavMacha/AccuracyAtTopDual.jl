@@ -130,4 +130,11 @@ function Base.getindex(K::OnFlyKernel, i::Int, ::Colon)
     return copy(K.row)
 end
 Base.size(K::OnFlyKernel) = (K.n, K.n)
-Base.:*(K::OnFlyKernel, s::AbstractVector) = [K[i, :]'*s for i in 1:size(K)[1]]
+function Base.:*(K::OnFlyKernel, s::AbstractVector)
+    x = zero(s)
+    for (i, si) in enumerate(s)
+        iszero(si) && continue
+        x .+= si .* K[i, :]
+    end
+    return x
+end
