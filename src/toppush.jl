@@ -46,7 +46,7 @@ struct RuleTopPush{T<:Real}
     ) where T
         
         Δ = min(max(lb, - num/den), ub)
-        L = den*Δ^2/2 + num*Δ
+        L = - den*Δ^2/2 - num*Δ
 
         return new{T}(L, Δ, num, den, lb, ub, k, l)
     end
@@ -75,7 +75,7 @@ function objective(model::TopPush{<:Hinge}, K::KernelMatrix)
     t = maximum(sβ)
     z = max.(sβ .- t, 0)
     y = t + sum(z) .- sα
-    
+
     # objectives
     L_primal = w_norm + C*sum(value.(model.l, y))
     L_dual = - w_norm + sum(αβ[inds_α(K)])/ϑ
@@ -87,8 +87,8 @@ function rule_αα(model::TopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
 
-    num = - s[k] + s[l]
-    den = - K[k, k] + 2*K[k, l] - K[l, l]
+    num = s[k] - s[l]
+    den = K[k, k] - 2*K[k, l] + K[l, l]
     lb = max(- αβ[k], αβ[l] - ϑ*C)
     ub = min(ϑ*C - αβ[k], αβ[l])
 
@@ -99,9 +99,9 @@ function rule_αβ(model::TopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
 
-    num = - s[k] + s[l]
-    den = - K[k, k] - 2*K[k, l] - K[l, l]
-    lb = max(- αβ[k], αβ[l])
+    num = s[k] + s[l] - 1/ϑ
+    den = K[k, k] + 2*K[k, l] + K[l, l]
+    lb = max(- αβ[k], - αβ[l])
     ub = ϑ*C - αβ[k]
 
     return RuleTopPush(model, K, num, den, lb, ub, k, l)
@@ -110,8 +110,8 @@ end
 function rule_ββ(model::TopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
 
-    num = - s[k] + s[l]
-    den = - K[k, k] + 2*K[k, l] - K[l, l]
+    num = s[k] - s[l]
+    den = K[k, k] - 2*K[k, l] + K[l, l]
     lb = - αβ[k]
     ub = αβ[l]
 
@@ -131,7 +131,7 @@ function objective(model::TopPush{<:Quadratic}, K::KernelMatrix)
     t = maximum(sβ)
     z = max.(sβ .- t, 0)
     y = t + sum(z) .- sα
-    
+
     # objectives
     L_primal = w_norm + C*sum(value.(model.l, y))
     L_dual = - w_norm + sum(α)/ϑ - sum(abs2, α)/(4*ϑ*C)
@@ -143,8 +143,8 @@ function rule_αα(model::TopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
 
-    num = - s[k] + s[l] - (αβ[k] - αβ[l])/(2*C*ϑ^2)
-    den = - K[k, k] - 2*K[k, l] - K[l, l] - 1/(C*ϑ^2)
+    num = s[k] - s[l] + (αβ[k] - αβ[l])/(2*C*ϑ^2)
+    den = K[k, k] - 2*K[k, l] + K[l, l] + 1/(C*ϑ^2)
     lb = - αβ[k]
     ub = αβ[l]
 
@@ -155,9 +155,9 @@ function rule_αβ(model::TopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
 
-    num = - s[k] + s[l]+ 1/ϑ - αβ[k]/(2*C*ϑ^2)
-    den = - K[k, k] - 2*K[k, l] - K[l, l] - 1/(2*C*ϑ^2)
-    lb = max(- αβ[k], αβ[l])
+    num = s[k] + s[l] - 1/ϑ + αβ[k]/(2*C*ϑ^2)
+    den = K[k, k] + 2*K[k, l] + K[l, l] + 1/(2*C*ϑ^2)
+    lb = max(- αβ[k], - αβ[l])
     ub = eltype(s)(Inf)
 
     return RuleTopPush(model, K, num, den, lb, ub, k, l)
@@ -166,8 +166,8 @@ end
 function rule_ββ(model::TopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
 
-    num = - s[k] + s[l]
-    den = - K[k, k] + 2*K[k, l] - K[l, l]
+    num = s[k] - s[l]
+    den = K[k, k] - 2*K[k, l] + K[l, l]
     lb = - αβ[k]
     ub = αβ[l]
 
