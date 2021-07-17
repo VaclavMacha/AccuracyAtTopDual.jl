@@ -26,7 +26,7 @@ function solve!(
     X,
     y,
     kernel_in;
-    type = OnFlyKernel,
+    precomputed = false,
     maxiter = 20000,
     seed = 1234,
     scale = true
@@ -38,7 +38,7 @@ function solve!(
         kernel_in
     end
 
-    K = KernelMatrix(model, X, y, kernel; type)
+    K = KernelMatrix(model, X, y, kernel; precomputed)
 
     @info "Initialization"
     initialization!(model, K; seed)
@@ -69,6 +69,6 @@ function solve!(
         next!(bar; showvalues = vals)
     end
 
-    s = extraxt_scores(model, K)
+    s = extract_scores(model, K)
     return y, s, Lps, Lds
 end

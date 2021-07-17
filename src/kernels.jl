@@ -1,124 +1,83 @@
-abstract type KernelMatrix{T<:Real} end
+struct KernelMatrix{M, T<:Real, D<:Kernel}
+    X::Matrix{T}
+    y::BitVector
+    kernel::D
 
-function KernelMatrix(m::Model, X, y, kernel; type::Type{<:KernelMatrix} = OnFlyKernel)
-    inds_α, inds_β = indices(m, y)
-    return type(X, y, kernel, inds_α, inds_β)
+    # auxilliary vars
+    n::Int
+    nα::Int
+    nβ::Int
+    perm::Vector{Int}
+
+    # kernel matrix
+    matrix::M
+
+    function KernelMatrix(model, X::Matrix{T}, y, kernel; precomputed = false) where {T}
+        y = BitVector(y)
+        nα, nβ, perm = indices(model, y)
+
+        if precomputed 
+            matrix = kernelmatrix(kernel, X[perm, :]; obsdim = 1)
+            matrix[1:nα, (nα+1):end] .*= -1
+            matrix[(nα+1):end, 1:nα] .*= -1
+        else
+            diag = kernelmatrix_diag(kernel, X[perm, :]; obsdim = 1)
+            matrix = OnFlyMatrix{T}(0, diag, similar(diag))
+        end
+        D, M = typeof(kernel), typeof(matrix)
+        return new{M, T, D}(X, y, kernel, nα + nβ, nα, nβ, perm, matrix)
+    end
 end
 
-Base.show(io::IO, K::KernelMatrix) = print(io, join(size(K), "x"), " kernel matrix")
-Base.eltype(::KernelMatrix{T}) where {T<:Real} = T
+Base.show(io::IO, K::KernelMatrix) = print(io, "$(K.n)x$(K.n) kernel matrix")
+Base.size(K::KernelMatrix) = (K.n, K.n)
+Base.eltype(::KernelMatrix{M, T}) where {M, T} = T
+Base.getindex(K::KernelMatrix, args...) = getindex(K.matrix, args...)
+Base.:*(K::KernelMatrix, s::AbstractVector) = K.matrix * s
 
 inds_α(K::KernelMatrix)  = 1:K.nα
 inds_β(K::KernelMatrix)  = (K.nα + 1):K.n
-inds_αβ(K::KernelMatrix) = 1:K.nα
 
-# Precomputed
-struct PrecomputedKernel{T<:Real, K<:Kernel} <: KernelMatrix{T}
-    X::Matrix{T}
-    y::BitVector
-    kernel::K
-
-    # auxilliary vars
-    n::Int
-    nα::Int
-    nβ::Int
-    inds_αβ::Vector{Int}
-
-    # kernel matrix
-    K::Matrix{T}
-
-    function PrecomputedKernel(X, y, kernel, inds_α, inds_β)
-        nα = length(inds_α)
-        inds_αβ = vcat(inds_α, inds_β)
-        K = kernelmatrix(kernel, X[inds_αβ, :]; obsdim = 1)
-        K[1:nα, (nα+1):end] .*= -1
-        K[(nα+1):end, 1:nα] .*= -1
-
-        return new{eltype(K), typeof(kernel)}(
-            X,
-            BitVector(y),
-            kernel,
-            length(inds_αβ),
-            nα,
-            length(inds_β),
-            inds_αβ,
-            K
-        )
-    end
-end
-
-Base.getindex(K::PrecomputedKernel, args...) = getindex(K.K, args...)
-Base.size(K::PrecomputedKernel) = size(K.K)
-Base.:*(K::PrecomputedKernel, s::AbstractVector) = K.K*s
-
-# On fly computation
-struct OnFlyKernel{T<:Real, K<:Kernel} <: KernelMatrix{T}
-    X::Matrix{T}
-    y::BitVector
-    kernel::K
-
-    # auxilliary vars
-    n::Int
-    nα::Int
-    nβ::Int
-    inds_αβ::Vector{Int}
-
-    # kernel matrix
-    row_id::Ref{Int}
-    row::Vector{T}
+# OnFlyMatrix
+mutable struct OnFlyMatrix{T<:Real}
+    row_id::Int
     diag::Vector{T}
-
-    function OnFlyKernel(X, y, kernel, inds_α, inds_β)
-        nα = length(inds_α)
-        inds_αβ = vcat(inds_α, inds_β)
-        diag = kernelmatrix_diag(kernel, X[inds_αβ, :]; obsdim = 1)
-
-        return new{eltype(diag), typeof(kernel)}(
-            X,
-            BitVector(y),
-            kernel,
-            length(inds_αβ),
-            nα,
-            length(inds_β),
-            inds_αβ,
-            Ref(0),
-            similar(diag),
-            diag
-        )
-    end
+    row::Vector{T}
 end
 
-function computerow!(K::OnFlyKernel, i::Int)
-    row = kernelmatrix(K.kernel, K.X[K.inds_αβ, :], K.X[K.inds_αβ[i:i], :]; obsdim = 1)
-    K.row .= row[:] 
+function computerow!(K::KernelMatrix{<:OnFlyMatrix}, i::Int)
+    row = kernelmatrix(K.kernel, K.X[K.perm, :], K.X[K.perm[i:i], :]; obsdim = 1)[:] 
+    row[i <= K.nα ? inds_β(K) : inds_α(K)] .*= -1
 
-    inds = i <= K.nα ? inds_β(K) : inds_α(K)
-    K.row[inds] .*= -1
-    K.row_id[] = i
+    K.matrix.row .= row 
+    K.matrix.row_id = i
     return
 end
 
-function Base.getindex(K::OnFlyKernel, i::Int, j::Int)
+function Base.getindex(K::KernelMatrix{<:OnFlyMatrix}, i::Int, j::Int)
     if i == j
-        K.diag[i]
+        K.matrix.diag[i]
     else
-        if i == K.row_id[]
-            K.row[j]
-        elseif j == K.row_id[]
-            K.row[i]
+        id = K.matrix.row_id
+        if i == id
+            K.matrix.row[j]
+        elseif j == id
+            K.matrix.row[i]
         else
             computerow!(K, i)
-            K.row[j]
+            K.matrix.row[j]
         end
     end
 end
 
-function Base.getindex(K::OnFlyKernel, i::Int, ::Colon)
-    i == K.row_id[] || computerow!(K, i)
-    return copy(K.row)
+function Base.getindex(K::KernelMatrix{<:OnFlyMatrix}, i::Int, ::Colon)
+    i == K.matrix.row_id || computerow!(K, i)
+    return copy(K.matrix.row)
 end
-Base.size(K::OnFlyKernel) = (K.n, K.n)
-function Base.:*(K::OnFlyKernel, s::AbstractVector)
+
+Base.getindex(K::KernelMatrix{<:OnFlyMatrix}, ::Colon, i::Int) = getindex(K, i, :)
+
+function Base.:*(K::KernelMatrix{<:OnFlyMatrix}, s::AbstractVector)
     x = zero(s)
     for (i, si) in enumerate(s)
         iszero(si) && continue
