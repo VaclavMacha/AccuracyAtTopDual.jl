@@ -19,19 +19,13 @@ include("surrogates.jl")
 # asbtract toppush
 abstract type AbstractTopPush <: Model end
 
-function KernelMatrix(
-    ::AbstractTopPush,
-    X,
-    y,
-    kernel;
-    type::Type{<:KernelMatrix} = OnFlyKernel
-)
+indices(m::Model, y) = indices(m, BitArray(y))
 
-    y = BitVector(y)
+function indices(::AbstractTopPush, y::BitVector(y))
     inds_α = findall(y)
     inds_β = findall(.~y)
 
-    return type(X, y, kernel, inds_α, inds_β)
+    return inds_α, inds_β
 end
 
 struct RuleTopPush{T<:Real}

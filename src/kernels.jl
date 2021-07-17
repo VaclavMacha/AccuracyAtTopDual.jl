@@ -1,8 +1,12 @@
 abstract type KernelMatrix{T<:Real} end
 
+function KernelMatrix(m::Model, X, y, kernel; type::Type{<:KernelMatrix} = OnFlyKernel)
+    inds_α, inds_β = indices(m, y)
+    return type(X, y, kernel, inds_α, inds_β)
+end
+
 Base.show(io::IO, K::KernelMatrix) = print(io, join(size(K), "x"), " kernel matrix")
 Base.eltype(::KernelMatrix{T}) where {T<:Real} = T
-
 
 inds_α(K::KernelMatrix)  = 1:K.nα
 inds_β(K::KernelMatrix)  = (K.nα + 1):K.n
