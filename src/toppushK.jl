@@ -9,11 +9,11 @@ end
 
 find_βmax(βsort, βk) = βsort[1] != βk ? βsort[1] : βsort[2]
 
-Base.@kwdef struct TopPushK{S<:Surrogate, T <: Real} <: AbstractTopPush
+Base.@kwdef struct TopPushK{S<:Surrogate, T <: Real, F <: TopPushState} <: AbstractTopPush
     K::Int
     C::T = 1
     l::S = Hinge(1)
-    state::TopPushKState = TopPushKState(Float32)
+    state::F = TopPushKState(Float32)
 end
 
 TopPushK(K; kwargs...) = TopPushK(; K, kwargs...)
@@ -43,8 +43,8 @@ function update!(model::TopPushK, K::KernelMatrix, update)
         insert!(βsort, searchsortedfirst(βsort, αβ[k] + Δ; rev = true), αβ[k] + Δ)
     end
     if l > K.nα
-        deleteat!(βsort, searchsortedfirst(βsort, αβ[k]; rev = true))
-        insert!(βsort, searchsortedfirst(βsort, αβ[k] - y*Δ; rev = true), αβ[k] - y*Δ)
+        deleteat!(βsort, searchsortedfirst(βsort, αβ[l]; rev = true))
+        insert!(βsort, searchsortedfirst(βsort, αβ[l] - y*Δ; rev = true), αβ[l] - y*Δ)
     end
 
     model.state.s .+= Δ .* (K[k, :] - y*K[l, :])

@@ -5,10 +5,10 @@ mutable struct TopPushState{T<:Real}
     TopPushState(T) = new{T}(T[], T[])
 end
 
-Base.@kwdef struct TopPush{S<:Surrogate, T <: Real} <: AbstractTopPush
+Base.@kwdef struct TopPush{S<:Surrogate, T <: Real, F <: TopPushState} <: AbstractTopPush
     C::T = 1
     l::S = Hinge(1)
-    state::TopPushState = TopPushState(Float32)
+    state::F = TopPushState(Float32)
 end
 
 function initialization!(model::TopPush, K::KernelMatrix; seed)
