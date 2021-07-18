@@ -82,3 +82,32 @@ function solve!(
     s = extract_scores(model, K)
     return y, s, Lps, Lds
 end
+
+function predict(
+    model,
+    X::Matrix{T},
+    y,
+    kernel_in,
+    Xtest;
+    chunksize = 100,
+    scale = true,
+) where {T<:Real}
+
+    y = BitVector(y)
+    nα, ~, perm = permutation(model, y)
+    αβ = copy(model.state.αβ)
+    αβ[(nα + 1):end] .*= -1
+
+    kernel = if scale
+        with_lengthscale(kernel_in, size(X,2))
+    else
+        kernel_in
+    end
+
+    s = zeros(T, size(Xtest, 1))
+    for rows in partition(1:size(Xtest, 1), chunksize)
+        K = kernelmatrix(kernel, X[perm, :], Xtest[rows, :]; obsdim = 1) 
+        s[rows] .= vec(αβ' * K)
+    end
+    return s
+end

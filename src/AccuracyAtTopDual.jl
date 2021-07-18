@@ -9,12 +9,14 @@ using Random
 using Roots
 using Statistics
 
+using Base.Iterators: partition
+
 abstract type Model end
 abstract type Surrogate end
 
 export Hinge, Quadratic
 export TopPush, TopPushK, τFPL
-export solve! 
+export solve!, predict
 
 include("projections.jl")
 include("kernels.jl")
