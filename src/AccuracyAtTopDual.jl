@@ -1,6 +1,8 @@
 module AccuracyAtTopDual
 
-using KernelFunctions
+using Reexport
+
+@reexport using KernelFunctions
 using UnPack
 using ProgressMeter
 using Random
