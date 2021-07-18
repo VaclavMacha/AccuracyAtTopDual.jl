@@ -1,6 +1,5 @@
-function update!(model::Model, K::KernelMatrix)
+function update!(model::Model, K::KernelMatrix; k  = rand(1:K.n))
     best = (; L = -Inf, Δ = 0)
-    k = rand(1:K.n)
     K[k,1]
     for l in 1:K.n
         l == k && continue
@@ -13,12 +12,16 @@ function update!(model::Model, K::KernelMatrix)
         else
             rule_ββ(model, K, k, l)
         end
-        if update.L >= best.L
+        if update.L > best.L
             best = update
+        elseif update.L == best.L
+            if rand(Bool)
+                best = update
+            end
         end
     end
     update!(model, K, best)
-    return 
+    return k == best.l ? best.k : best.l
 end
 
 function solve!(
@@ -29,7 +32,9 @@ function solve!(
     precomputed = false,
     maxiter = 20000,
     seed = 1234,
-    scale = true
+    scale = true,
+    pupdate = 0.9,
+    ε::Real = 1e-3,
 )   
 
     kernel = if scale
@@ -49,10 +54,12 @@ function solve!(
 
     Lps = [Lp0]
     Lds = [Ld0]
+    k = rand(1:K.n)
 
     # train
     for _ in 1:maxiter
-        update!(model, K)
+        k = rand() > pupdate ? rand(1:K.n) : k
+        k = update!(model, K; k)
 
         # update progress bar
         Lp, Ld, gap = objective(model, K)
@@ -67,6 +74,8 @@ function solve!(
             (:gap, gap),
         ]
         next!(bar; showvalues = vals)
+
+        gap <= ε && break
     end
 
     s = extract_scores(model, K)
