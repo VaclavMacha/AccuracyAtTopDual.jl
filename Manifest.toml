@@ -134,12 +134,6 @@ version = "0.2.5"
 [[Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
-[[MLKernels]]
-deps = ["LinearAlgebra", "SpecialFunctions", "Statistics", "Test"]
-git-tree-sha1 = "d8ae6ac28480a25ddaae9ad9108371035ef9a346"
-uuid = "6899632a-1081-549c-8d71-752c8a25a7ba"
-version = "0.4.0"
-
 [[MacroTools]]
 deps = ["Markdown", "Random"]
 git-tree-sha1 = "6a8a2a625ab0dea913aba95c11370589e0239ff0"
@@ -207,6 +201,11 @@ uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 [[Random]]
 deps = ["Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[[Reexport]]
+git-tree-sha1 = "5f6c21241f0f655da3952fd60aa18477cf96c220"
+uuid = "189a3867-3050-52da-a836-e630ba90ab69"
+version = "1.1.0"
 
 [[Requires]]
 deps = ["UUIDs"]
