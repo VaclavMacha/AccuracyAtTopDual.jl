@@ -14,7 +14,7 @@ struct KernelMatrix{M, T<:Real, D<:Kernel}
 
     function KernelMatrix(model, X::Matrix{T}, y, kernel; precomputed = false) where {T}
         y = BitVector(y)
-        nα, nβ, perm = indices(model, y)
+        nα, nβ, perm = permutation(model, y)
 
         if precomputed 
             matrix = kernelmatrix(kernel, X[perm, :]; obsdim = 1)

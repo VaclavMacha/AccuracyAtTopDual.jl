@@ -46,11 +46,12 @@ function solve!(
     K = KernelMatrix(model, X, y, kernel; precomputed)
 
     @info "Initialization"
-    initialization!(model, K; seed)
+    Random.seed!(seed)
+    initialization!(model, K)
 
     # progress bar
     Lp0, Ld0, gap0 = objective(model, K)
-    bar = ProgressMeter.Progress(maxiter, 0.1, "Training")
+    bar = ProgressMeter.Progress(maxiter, 1, "Training")
 
     Lps = [Lp0]
     Lds = [Ld0]
