@@ -36,9 +36,14 @@ struct TPRule{T<:Real}
 end
 
 function extract_scores(model::AbstractTopPush, K::KernelMatrix)
-    s = model.state.s
+    s = copy(model.state.s)
     s[inds_β(K)] .*= -1
     return s[invperm(K.perm)] 
+end
+
+function extract_params(model::AbstractTopPush, K::KernelMatrix)
+    αβ = copy(model.state.αβ)
+    return  (α = αβ[inds_α(K)], β = αβ[inds_β(K)])
 end
 
 mutable struct TPState{T<:Real}
