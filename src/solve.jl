@@ -21,12 +21,30 @@ function update!(model::Model, K::KernelMatrix; k  = rand(1:K.n))
         end
     end
     update!(model, K, best)
-    return k == best.l ? best.k : best.l
+    return k == best.l ? (best.l, best.k) : (best.k, best.l)
 end
+
+function log!(hist, model, K, iter, k, l; at = 1000)
+    T = eltype(K)
+    Lprimal, Ldual, gap = objective(model, K)
+    append!(get!(hist, :iter, Int[]), iter)
+    append!(get!(hist, :k, Int[]), k)
+    append!(get!(hist, :l, Int[]), l)
+    append!(get!(hist, :Lprimal, T[]), Lprimal)
+    append!(get!(hist, :Ldual, T[]), Ldual)
+    append!(get!(hist, :gap, T[]), gap)
+
+    if mod(iter, at) == 0
+        d = get!(hist, :evolution, Dict{Int, Vector{T}}())
+        d[iter] = copy(extract_scores(model, K))
+    end
+    return
+end
+
 
 function solve!(
     model,
-    X,
+    X::Matrix{T},
     y,
     kernel_in;
     precomputed = false,
@@ -35,52 +53,57 @@ function solve!(
     scale = true,
     pupdate = 0.9,
     ε::Real = 1e-3,
-)   
+    at = max(1, round(Int, maxiter/100)),
+) where {T<:Real}
 
-    kernel = if scale
-        with_lengthscale(kernel_in, size(X,2))
-    else
-        kernel_in
-    end
-
+    # kernel scaling 
+    
+    kernel = scale ? kernel_in ∘ ScaleTransform(T(1/size(X,2))) : kernel_in
     K = KernelMatrix(model, X, y, kernel; precomputed)
 
+    # initialization
     @info "Initialization"
     Random.seed!(seed)
-    initialization!(model, K)
+    @time initialization!(model, K)
 
-    # progress bar
-    Lp0, Ld0, gap0 = objective(model, K)
+    # progress bar and history
     bar = ProgressMeter.Progress(maxiter, 1, "Training")
-
-    Lps = [Lp0]
-    Lds = [Ld0]
     k = rand(1:K.n)
+    l = k
+    hist = Dict{Symbol, Any}(
+        :precomputed => precomputed, 
+        :maxiter => maxiter, 
+        :seed => seed, 
+        :scale => scale, 
+        :pupdate => pupdate,
+        :ε => ε,
+        :labels => y,
+    )
+    log!(hist, model, K, 0, 0, 0; at)
 
     # train
-    for _ in 1:maxiter
-        k = rand() > pupdate ? rand(1:K.n) : k
-        k = update!(model, K; k)
+    for iter in 1:maxiter
+        k = rand() > pupdate ? rand(1:K.n) : l
+        k, l = update!(model, K; k)
 
         # update progress bar
-        Lp, Ld, gap = objective(model, K)
-        push!(Lps, Lp)
-        push!(Lds, Ld)
+        log!(hist, model, K, iter, k, l; at)
         vals = [
-            (:L_primal_0, Lp0),
-            (:L_dual_0, Ld0),
-            (:gap_0, gap0),
-            (:L_primal, Lp),
-            (:L_dual, Ld),
-            (:gap, gap),
+            (:L_primal_0, hist[:Lprimal][1]),
+            (:L_dual_0, hist[:Ldual][1]),
+            (:gap_0, hist[:gap][1]),
+            (:L_primal, hist[:Lprimal][end]),
+            (:L_dual, hist[:Ldual][end]),
+            (:gap, hist[:gap][end]),
         ]
         next!(bar; showvalues = vals)
 
-        gap <= ε && break
+        # stop condition
+        hist[:gap][end] <= ε && break
     end
-
-    s = extract_scores(model, K)
-    return y, s, Lps, Lds
+    hist[:solution] = extract_params(model, K)
+    hist[:scores] = extract_scores(model, K)
+    return hist
 end
 
 function predict(
@@ -98,11 +121,7 @@ function predict(
     αβ = copy(model.state.αβ)
     αβ[(nα + 1):end] .*= -1
 
-    kernel = if scale
-        with_lengthscale(kernel_in, size(X,2))
-    else
-        kernel_in
-    end
+    kernel = scale ? kernel_in ∘ ScaleTransform(T(1/size(X,2))) : kernel_in
 
     s = zeros(T, size(Xtest, 1))
     for rows in partition(1:size(Xtest, 1), chunksize)
