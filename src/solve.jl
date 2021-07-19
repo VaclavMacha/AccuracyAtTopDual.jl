@@ -56,8 +56,7 @@ function solve!(
     at = max(1, round(Int, maxiter/100)),
 ) where {T<:Real}
 
-    # kernel scaling 
-    
+    # kernel scaling
     kernel = scale ? kernel_in ∘ ScaleTransform(T(1/size(X,2))) : kernel_in
     K = KernelMatrix(model, X, y, kernel; precomputed)
 
@@ -121,6 +120,7 @@ function predict(
     αβ = copy(model.state.αβ)
     αβ[(nα + 1):end] .*= -1
 
+    # kernel scaling
     kernel = scale ? kernel_in ∘ ScaleTransform(T(1/size(X,2))) : kernel_in
 
     s = zeros(T, size(Xtest, 1))
