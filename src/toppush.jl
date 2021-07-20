@@ -92,6 +92,15 @@ function Base.show(io::IO, m::TopPushK{S}) where {S<:Surrogate}
     print(io, "TopPushK($(m.K), $(m.C), $(S.name.name), $(m.l.ϑ))")
 end
 
+function add_params!(solution, model::TopPushK{S}) where {S<:Surrogate}
+    get!(solution, :model, "TopPushK")
+    get!(solution, :K, model.K)
+    get!(solution, :C, model.C)
+    get!(solution, :surrogate, S.name.name)
+    get!(solution, :ϑ, model.l.ϑ)
+    return 
+end
+
 struct τFPL{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
     τ::T
     C::T
@@ -114,6 +123,15 @@ model_K(model::τFPL, K::KernelMatrix) = max(1, round(Int, model.τ * K.nβ))
 
 function Base.show(io::IO, m::τFPL{S}) where {S<:Surrogate}
     print(io, "τFPL($(m.τ), $(m.C), $(S.name.name), $(m.l.ϑ))")
+end
+
+function add_params!(solution, model::τFPL{S}) where {S<:Surrogate}
+    get!(solution, :model, "τFPL")
+    get!(solution, :τ, model.τ)
+    get!(solution, :C, model.C)
+    get!(solution, :surrogate, S.name.name)
+    get!(solution, :ϑ, model.l.ϑ)
+    return 
 end
 
 function threshold(model::AbstractTopPush, K::KernelMatrix)
@@ -178,6 +196,14 @@ threshold(model::TopPush, K::KernelMatrix) = - minimum(model.state.s[inds_β(K)]
 
 function Base.show(io::IO, m::TopPush{S}) where {S<:Surrogate}
     print(io, "TopPush($(m.C), $(S.name.name), $(m.l.ϑ))")
+end
+
+function add_params!(solution, model::TopPush{S}) where {S<:Surrogate}
+    get!(solution, :model, "TopPush")
+    get!(solution, :C, model.C)
+    get!(solution, :surrogate, S.name.name)
+    get!(solution, :ϑ, model.l.ϑ)
+    return 
 end
 
 function initialization!(model::TopPush, K::KernelMatrix)

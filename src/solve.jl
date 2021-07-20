@@ -76,8 +76,8 @@ function solve!(
         :scale => scale, 
         :pupdate => pupdate,
         :ε => ε,
-        :labels => y,
     )
+    add_params!(hist, model)
     log!(hist, model, K, 0, 0, 0; at)
 
     # train
@@ -101,7 +101,9 @@ function solve!(
         hist[:gap][end] <= ε && break
     end
     finish!(bar; showvalues = vals)
-    hist[:solution] = (; s = extract_scores(model, K), extract_params(model, K)...)
+    hist[:solution] = Dict{Symbol, NamedTuple}(
+        :train => (; y, s = extract_scores(model, K), extract_params(model, K)...)
+    )
     return hist
 end
 
@@ -110,14 +112,14 @@ function predict(
     X::Matrix{T},
     y,
     kernel_in,
-    Xtest;
+    Xtest,
+    αβ = copy(model.state.αβ);
     chunksize = 100,
     scale = true,
 ) where {T<:Real}
 
     y = BitVector(y)
     nα, ~, perm = permutation(model, y)
-    αβ = copy(model.state.αβ)
     αβ[(nα + 1):end] .*= -1
 
     # kernel scaling
