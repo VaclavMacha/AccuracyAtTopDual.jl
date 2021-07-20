@@ -66,7 +66,7 @@ function solve!(
     @time initialization!(model, K)
 
     # progress bar and history
-    bar = ProgressMeter.Progress(maxiter, 1, "Training: ")
+    bar = Progress(maxiter, 1, "Training: ")
     k = rand(1:K.n)
     l = k
     vals = []
