@@ -35,15 +35,11 @@ function log!(hist, model, K, iter, k, l; at = 1000)
     append!(get!(hist, :gap, T[]), gap)
 
     if mod(iter, at) == 0
-        ds = get!(hist, :evolution_scores, Dict{Int, Vector{T}}())
-        dpars = get!(hist, :evolution_pars, Dict{Int, NamedTuple}())
-        ds[iter] = extract_scores(model, K)
-        dpars[iter] = extract_params(model, K)
-
+        d = get!(hist, :train, Dict{Int, NamedTuple}())
+        d[iter] = (; s = extract_scores(model, K), extract_params(model, K)...)
     end
     return
 end
-
 
 function solve!(
     model,
@@ -105,8 +101,7 @@ function solve!(
         hist[:gap][end] <= ε && break
     end
     finish!(bar; showvalues = vals)
-    hist[:solution] = extract_params(model, K)
-    hist[:scores] = extract_scores(model, K)
+    hist[:solution] = (; s = extract_scores(model, K), extract_params(model, K)...)
     return hist
 end
 
