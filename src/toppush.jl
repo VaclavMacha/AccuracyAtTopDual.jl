@@ -88,6 +88,10 @@ end
 
 model_K(model::TopPushK, ::KernelMatrix) = model.K
 
+function Base.show(io::IO, m::TopPushK{S}) where {S<:Surrogate}
+    print(io, "TopPushK($(m.K), $(m.C), $(S.name.name), $(m.l.ϑ))")
+end
+
 struct τFPL{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
     τ::T
     C::T
@@ -107,6 +111,10 @@ struct τFPL{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
 end
 
 model_K(model::τFPL, K::KernelMatrix) = max(1, round(Int, model.τ * K.nβ))
+
+function Base.show(io::IO, m::τFPL{S}) where {S<:Surrogate}
+    print(io, "τFPL($(m.τ), $(m.C), $(S.name.name), $(m.l.ϑ))")
+end
 
 function threshold(model::AbstractTopPush, K::KernelMatrix)
     return - mean(partialsort(model.state.s[inds_β(K)], 1:model_K(model, K)))
@@ -167,6 +175,10 @@ end
 
 model_K(::TopPush, ::KernelMatrix) = 1
 threshold(model::TopPush, K::KernelMatrix) = - minimum(model.state.s[inds_β(K)])
+
+function Base.show(io::IO, m::TopPush{S}) where {S<:Surrogate}
+    print(io, "TopPush($(m.C), $(S.name.name), $(m.l.ϑ))")
+end
 
 function initialization!(model::TopPush, K::KernelMatrix)
     T = eltype(K)
