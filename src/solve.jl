@@ -35,8 +35,11 @@ function log!(hist, model, K, iter, k, l; at = 1000)
     append!(get!(hist, :gap, T[]), gap)
 
     if mod(iter, at) == 0
-        d = get!(hist, :evolution, Dict{Int, Vector{T}}())
-        d[iter] = copy(extract_scores(model, K))
+        ds = get!(hist, :evolution_scores, Dict{Int, Vector{T}}())
+        dpars = get!(hist, :evolution_pars, Dict{Int, NamedTuple}())
+        ds[iter] = extract_scores(model, K)
+        dpars[iter] = extract_params(model, K)
+
     end
     return
 end
@@ -57,7 +60,7 @@ function solve!(
 ) where {T<:Real}
 
     # kernel scaling
-    kernel = scale ? kernel_in ∘ ScaleTransform(T(1/size(X,2))) : kernel_in
+    kernel = scale ? kernel_in ∘ ScaleTransform(T(2/size(X,2))) : kernel_in
     K = KernelMatrix(model, X, y, kernel; precomputed)
 
     # initialization
@@ -123,7 +126,7 @@ function predict(
     αβ[(nα + 1):end] .*= -1
 
     # kernel scaling
-    kernel = scale ? kernel_in ∘ ScaleTransform(T(1/size(X,2))) : kernel_in
+    kernel = scale ? kernel_in ∘ ScaleTransform(T(2/size(X,2))) : kernel_in
 
     s = zeros(T, size(Xtest, 1))
     for rows in partition(1:size(Xtest, 1), chunksize)
