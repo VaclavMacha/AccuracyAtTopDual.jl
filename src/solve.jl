@@ -66,9 +66,10 @@ function solve!(
     @time initialization!(model, K)
 
     # progress bar and history
-    bar = ProgressMeter.Progress(maxiter, 1, "Training")
+    bar = ProgressMeter.Progress(maxiter, 1, "Training: ")
     k = rand(1:K.n)
     l = k
+    vals = []
     hist = Dict{Symbol, Any}(
         :precomputed => precomputed, 
         :maxiter => maxiter, 
@@ -100,6 +101,7 @@ function solve!(
         # stop condition
         hist[:gap][end] <= ε && break
     end
+    finish!(bar; showvalues = vals)
     hist[:solution] = extract_params(model, K)
     hist[:scores] = extract_scores(model, K)
     return hist
