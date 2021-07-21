@@ -19,7 +19,7 @@ function projection(α0::AbstractVector, β0::AbstractVector, δ0::Real, C1::Rea
     μ_ub  = min(μ_ub1, μ_ub2) - 1e8
     μ_lb  = maximum(β0) + C2*max(δ0, 0) + 1e8
 
-    μ = Roots.find_zero(μ -> h(μ, α0, β0, δ0, C1, C2), (μ_lb, μ_ub))
+    μ = find_root(μ -> h(μ, α0, β0, δ0, C1, C2), (μ_lb, μ_ub))
     λ = f(μ, α0, β0, δ0, C1, C2)
 
     α = @. min(max(α0 - λ, 0), C1)
@@ -41,7 +41,7 @@ function projection(α0::AbstractVector, β0::AbstractVector, δ0::Real)
         return zero(α0), zero(β0), zero(δ0)
     end
 
-    λ = Roots.find_zero(λ -> f(λ, α0, β0, δ0), (- maximum(β0), maximum(α0)))
+    λ = find_root(λ -> f(λ, α0, β0, δ0), (- maximum(β0), maximum(α0)))
 
     α = @. max(α0 - λ, 0)
     β = @. max(β0 + λ, 0)
@@ -95,7 +95,7 @@ function projection(α0::AbstractVector, β0::AbstractVector, C::Real, K::Real)
     μ_lb = 1e-10
     μ_ub = length(α0)*C/K + 1e-6
  
-    μ = Roots.find_zero(μ -> h(μ, s, α0, β0, C, K), (μ_lb, μ_ub))
+    μ = find_root(μ -> h(μ, s, α0, β0, C, K), (μ_lb, μ_ub))
     λ = f(μ, s, K)
     δ = sum(max.(β0 .+ λ .- μ, 0))/K
 
@@ -126,7 +126,7 @@ function projection(α0::AbstractVector, β0::AbstractVector, K::Integer)
     μ_lb = 1e-10
     μ_ub = length(α0)*(maximum(α0) + maximum(β0))/K
  
-    μ = Roots.find_zero(μ -> h(μ, s, α0, β0, K), (μ_lb, μ_ub))
+    μ = find_root(μ -> h(μ, s, α0, β0, K), (μ_lb, μ_ub))
     λ = f(μ, s, K)
     δ = sum(max.(β0 .+ λ .- μ, 0))/K
 
@@ -134,4 +134,12 @@ function projection(α0::AbstractVector, β0::AbstractVector, K::Integer)
     β = @. max(min(β0 + λ, μ), 0)
 
     return α, β
+end
+
+function find_root(f, lims)
+    try
+        Roots.find_zero(f, lims)
+    catch
+        Roots.fzero(f, sum(lims)/2)
+    end
 end
