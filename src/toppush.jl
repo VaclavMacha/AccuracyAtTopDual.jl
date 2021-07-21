@@ -58,7 +58,7 @@ end
 find_βmax(βsort, βk) = βsort[1] != βk ? βsort[1] : βsort[2]
 
 function projection(model::AbstractTopPush{<:Hinge}, K::KernelMatrix, α, β)
-    return projection(α, β, m.l.ϑ*m.C, model_K(model, K))
+    return projection(α, β, model.l.ϑ*model.C, model_K(model, K))
 end
 
 function projection(model::AbstractTopPush{<:Quadratic}, K::KernelMatrix, α, β)
