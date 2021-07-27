@@ -21,6 +21,14 @@ struct KernelType{T<:Real, K}
     end
 end
 
+function Base.show(io::IO, ker::KernelType{T, K}) where {T, K<:Linear}
+    print(io, "Linear(pre = $(ker.precomputed), ml = $(ker.mlkernels))")
+end
+
+function Base.show(io::IO, ker::KernelType{T, K}) where {T, K<:Gaussian}
+    print(io, "Gaussian($(ker.γ), scale = $(ker.scale), pre = $(ker.precomputed), ml = $(ker.mlkernels))")
+end
+
 function init(ker::KernelType{T, K}, d) where {T, K}
     γ = compute_gamma(ker, d)
     return ker.mlkernels ? init_mk(K, γ, T) : init_kf(K, γ, T)
