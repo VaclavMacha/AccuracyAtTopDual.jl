@@ -31,7 +31,7 @@ end
 
 function init(ker::KernelType{T, K}, d) where {T, K}
     γ = compute_gamma(ker, d)
-    return ker.mlkernels ? init_mk(K, γ, T) : init_kf(K, γ, T)
+    return ker.mlkernels ? init_ml(K, γ, T) : init_kf(K, γ, T)
 end
 
 function compute_gamma(ker::KernelType{T, K}, d) where {T, K}
@@ -41,7 +41,7 @@ end
 # KernelFunctions.jl
 function init_kf(::Type{Gaussian}, γ, T)
     K = KernelFunctions.SqExponentialKernel
-    return K() ∘ KernelFunctions.ScaleTransform(T(2*γ))
+    return K() ∘ KernelFunctions.ScaleTransform(T(sqrt(2)*sqrt(γ)))
 end
 
 init_kf(::Type{Linear}, γ, T) = KernelFunctions.LinearKernel()
@@ -59,8 +59,8 @@ function kernelmatrix_diag(kernel::KernelFunctions.Kernel, X)
 end
 
 # MLKernels.jl
-init_mk(::Type{Gaussian}, γ, T) = MLKernels.GaussianKernel{T}(γ)
-init_mk(::Type{Linear}, γ, T) = MLKernels.PolynomialKernel{T}(2, 0, 1)
+init_ml(::Type{Gaussian}, γ, T) = MLKernels.GaussianKernel{T}(γ)
+init_ml(::Type{Linear}, γ, T) = MLKernels.PolynomialKernel{T}(2, 0, 1)
 
 function kernelmatrix(kernel::MLKernels.Kernel, X)
     return MLKernels.kernelmatrix(Val(:row), kernel, X, true)
