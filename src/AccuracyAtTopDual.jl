@@ -16,7 +16,7 @@ abstract type Model end
 abstract type Surrogate end
 
 export Hinge, Quadratic, KernelType, Linear, Gaussian, init
-export TopPush, TopPushK, τFPL, SVM
+export Model, TopPush, TopPushK, τFPL, SVM
 export solve!, predict
 
 include("projections.jl")
