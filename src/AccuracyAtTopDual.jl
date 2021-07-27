@@ -1,27 +1,29 @@
 module AccuracyAtTopDual
 
-using Reexport
-
-@reexport using KernelFunctions
-using UnPack
+using LIBSVM
 using ProgressMeter
 using Random
 using Roots
+using UnPack
 using Statistics
+
+import MLKernels
+import KernelFunctions
 
 using Base.Iterators: partition
 
 abstract type Model end
 abstract type Surrogate end
 
-export Hinge, Quadratic
-export TopPush, TopPushK, τFPL
+export Hinge, Quadratic, KernelType, Linear, Gaussian, init
+export TopPush, TopPushK, τFPL, SVM
 export solve!, predict
 
 include("projections.jl")
 include("kernels.jl")
 include("surrogates.jl")
 include("toppush.jl")
+include("svm.jl")
 include("solve.jl")
 
 end # module
