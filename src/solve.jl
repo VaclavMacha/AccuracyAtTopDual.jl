@@ -46,10 +46,10 @@ function solve!(
     X::Matrix{T},
     y,
     ker::KernelType{T, D};
-    maxiter = 20000,
+    maxiter = 100000,
     seed = 1234,
     pupdate = 0.9,
-    ε::Real = 1e-6,
+    ε::Real = 1e-8,
     at = max(1, round(Int, maxiter/100)),
 ) where {T<:Real, D <: Kernel}
 
@@ -87,20 +87,19 @@ function solve!(
 
         # update progress bar
         log!(hist, model, K, iter, k, l; at)
+        g0 = hist[:gap][1]
+        g = hist[:gap][end]
         vals = [
-            (:L_primal_0, hist[:Lprimal][1]),
-            (:L_dual_0, hist[:Ldual][1]),
-            (:gap_0, hist[:gap][1]),
             (:L_primal, hist[:Lprimal][end]),
             (:L_dual, hist[:Ldual][end]),
-            (:gap, hist[:gap][end]),
+            (:gap, g),
+            (:iter, iter),
+            (:stop, g/g0),
         ]
         next!(bar; showvalues = vals)
 
         # stop condition
-        g0 = hist[:gap][1]
-        g = hist[:gap][end]
-        g <= ε*g0 && break
+        g/g0 <= ε && break
     end
     finish!(bar; showvalues = vals)
 
