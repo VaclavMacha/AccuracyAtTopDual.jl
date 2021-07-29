@@ -80,6 +80,10 @@ struct PatMat{S<:Surrogate, T<:Real} <: AbstractPatMat{S}
     end
 end
 
+function Base.show(io::IO, m::PatMat{S}) where {S<:Surrogate}
+    print(io, "PatMat($(m.τ), $(m.C), $(S.name.name), $(m.l1.ϑ), $(m.l2.ϑ))")
+end
+
 function permutation(::PatMat, y::BitVector)
     perm_α = findall(y)
     perm_β = 1:length(y)
@@ -177,6 +181,10 @@ struct PatMatNP{S<:Surrogate, T<:Real} <: AbstractPatMat{S}
         l2 = surrogate(T(ϑ2))
         return new{typeof(l1), T}(T(τ), T(C), l1, l2, PMState(T))
     end
+end
+
+function Base.show(io::IO, m::PatMatNP{S}) where {S<:Surrogate}
+    print(io, "PatMatNP($(m.τ), $(m.C), $(S.name.name), $(m.l1.ϑ), $(m.l2.ϑ))")
 end
 
 function permutation(::PatMatNP, y::BitVector)
