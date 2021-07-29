@@ -310,7 +310,7 @@ function rule_ββ(model::AbstractPatMat{<:Hinge}, K::KernelMatrix, k::Int, l::I
         (; L = -Inf, Δ = 0)
     end
 
-    return [sol1, sol2, sol3][argmax([sol1.l, sol2.l, sol3.l])]
+    return [sol1, sol2, sol3][argmax([sol1.L, sol2.L, sol3.L])]
 end
 
 # Quadratic loss
