@@ -1,5 +1,5 @@
 function update!(model::Model, K::KernelMatrix; k  = rand(1:K.n))
-    best = (; L = -Inf, Δ = 0)
+    best = (; L = -Inf, Δ = 0, k = k, l = k)
     K[k,1]
     for l in 1:K.n
         l == k && continue
