@@ -141,6 +141,7 @@ function solve!(
     y,
     ker::KernelType{T, D};
     seed = 1234,
+    ε::Real = 1e-8,
     kwargs...
 ) where {T<:Real, D <: Kernel}
 
@@ -164,7 +165,8 @@ function solve!(
         :kernel => D,
         :γ => ker.γ,
         :scale => ker.scale,
-        :mlkernels => ker.mlkernels, 
+        :mlkernels => ker.mlkernels,
+        :ε => ε,
     )
     add_params!(hist, model)
 
@@ -176,7 +178,8 @@ function solve!(
         probability = true,
         cost = Float64(model.C),
         gamma = Float64(compute_gamma(ker, size(X, 2))),
-        kernel = kernel_type
+        kernel = kernel_type,
+        epsilon = Float64(ε),
     )
     model.state = svm_model
 
