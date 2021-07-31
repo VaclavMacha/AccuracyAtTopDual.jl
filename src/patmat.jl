@@ -260,7 +260,7 @@ function rule_αβ(model::AbstractPatMat{<:Hinge}, K::KernelMatrix, k::Int, l::I
     sol1 = if αβ[l] + Δ1 <= βmax
         PMRule(model, K, num, den, lb, ub, k, l, βmax/ϑ2)
     else
-        (; L = -Inf, Δ = 0)
+        (; L = -Inf, Δ = 0, k, l)
     end
 
     # solution 2
@@ -269,7 +269,7 @@ function rule_αβ(model::AbstractPatMat{<:Hinge}, K::KernelMatrix, k::Int, l::I
     sol2 = if αβ[l] + Δ2 >= βmax
         PMRule(model, K, num + c, den, lb, ub, k, l, (αβ[l] + Δ2)/ϑ2)
     else
-        (; L = -Inf, Δ = 0)
+        (; L = -Inf, Δ = 0, k, l)
     end
 
     return sol1.L > sol2.L ? sol1 : sol2
@@ -290,7 +290,7 @@ function rule_ββ(model::AbstractPatMat{<:Hinge}, K::KernelMatrix, k::Int, l::I
     sol1 = if max(αβ[k] + Δ1, αβ[l] - Δ1) <= βmax
         PMRule(model, K, num, den, lb, ub, k, l, βmax/ϑ2)
     else
-        (; L = -Inf, Δ = 0)
+        (; L = -Inf, Δ = 0, k, l)
     end
 
     # solution 2
@@ -299,7 +299,7 @@ function rule_ββ(model::AbstractPatMat{<:Hinge}, K::KernelMatrix, k::Int, l::I
     sol2 = if αβ[k] + Δ2 >= max(βmax, αβ[l] - Δ2)
         PMRule(model, K, num + c, den, lb, ub, k, l, (αβ[k] + Δ2)/ϑ2)
     else
-        (; L = -Inf, Δ = 0)
+        (; L = -Inf, Δ = 0, k, l)
     end
 
     # solution 3
@@ -307,7 +307,7 @@ function rule_ββ(model::AbstractPatMat{<:Hinge}, K::KernelMatrix, k::Int, l::I
     sol3 = if αβ[l] - Δ3 >= max(βmax, αβ[k] + Δ2)
         PMRule(model, K, num - c, den, lb, ub, k, l, (αβ[l] - Δ3)/ϑ2)
     else
-        (; L = -Inf, Δ = 0)
+        (; L = -Inf, Δ = 0, k, l)
     end
 
     return [sol1, sol2, sol3][argmax([sol1.L, sol2.L, sol3.L])]
