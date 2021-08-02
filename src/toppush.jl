@@ -208,11 +208,9 @@ end
 
 function initialization!(model::TopPush, K::KernelMatrix)
     T = eltype(K)
-    α, β = projection(model, K, rand(T, K.nα), rand(T, K.nβ))
-    αβ = vcat(α, β)
 
-    model.state.s = K * αβ
-    model.state.αβ = αβ
+    model.state.s = zeros(T, K.n)
+    model.state.αβ = zeros(T, K.n)
     return
 end
 
