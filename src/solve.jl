@@ -21,19 +21,27 @@ function update!(model::Model, K::KernelMatrix; k  = rand(1:K.n))
         end
     end
     update!(model, K, best)
-    return k == best.l ? (best.l, best.k) : (best.k, best.l)
+    return k == best.l ? (best.Δ, best.l, best.k) : (best.Δ, best.k, best.l)
 end
 
-function log!(hist, model, K, iter, k, l; at = 1000)
+function log!(hist, model, K, iter, k, l, Δ; at = 1000)
     T = eltype(K)
-    Lprimal, Ldual, gap = objective(model, K)
     append!(get!(hist, :iter, Int[]), iter)
     append!(get!(hist, :k, Int[]), k)
     append!(get!(hist, :l, Int[]), l)
-    append!(get!(hist, :Lprimal, T[]), Lprimal)
-    append!(get!(hist, :Ldual, T[]), Ldual)
-    append!(get!(hist, :gap, T[]), gap)
-
+    append!(get!(hist, :delta, T[]), Δ)
+    
+    if iter == 0 || Δ != 0
+        Lprimal, Ldual, gap = objective(model, K)
+        append!(get!(hist, :Lprimal, T[]), Lprimal)
+        append!(get!(hist, :Ldual, T[]), Ldual)
+        append!(get!(hist, :gap, T[]), gap)
+    else
+        append!(hist[:Lprimal], hist[:Lprimal][end])
+        append!(hist[:Ldual], hist[:Ldual][end])
+        append!(hist[:gap], hist[:gap][end])
+    end
+    
     if mod(iter, at) == 0
         d = get!(hist, :train, Dict{Int, NamedTuple}())
         d[iter] = (; s = extract_scores(model, K), extract_params(model, K)...)
@@ -46,10 +54,10 @@ function solve!(
     X::Matrix{T},
     y,
     ker::KernelType{T, D};
-    maxiter = 100000,
+    maxiter = 20000,
     seed = 1234,
     pupdate = 0.9,
-    ε::Real = 1e-8,
+    ε::Real = 1e-4,
     at = max(1, round(Int, maxiter/100)),
 ) where {T<:Real, D <: Kernel}
 
@@ -65,6 +73,7 @@ function solve!(
     bar = Progress(maxiter, 1, "Training: ")
     k = rand(1:K.n)
     l = k
+    Δ = zero(T)
     vals = []
     hist = Dict{Symbol, Any}(
         :precomputed => ker.precomputed, 
@@ -78,15 +87,19 @@ function solve!(
         :ε => ε,
     )
     add_params!(hist, model)
-    log!(hist, model, K, 0, 0, 0; at)
+    log!(hist, model, K, 0, 0, 0, 0; at)
 
     # train
     for iter in 1:maxiter
-        k = rand() > pupdate ? rand(1:K.n) : l
-        k, l = update!(model, K; k)
+        k = if Δ == 0 || rand() > pupdate
+            rand(1:K.n)
+        else
+            l
+        end
+        Δ, k, l = update!(model, K; k)
 
         # update progress bar
-        log!(hist, model, K, iter, k, l; at)
+        log!(hist, model, K, iter, k, l, Δ; at)
         g0 = hist[:gap][1]
         g = hist[:gap][end]
         vals = [
@@ -100,6 +113,8 @@ function solve!(
 
         # stop condition
         g/g0 <= ε && break
+        isnan(g) && break
+        isinf(g) && break
     end
     finish!(bar; showvalues = vals)
 
