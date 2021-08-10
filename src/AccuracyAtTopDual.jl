@@ -23,8 +23,7 @@ export solve!, predict
 
 include("projections.jl")
 include("kernels.jl")
-include("surrogates.jl")
-include("update.jl")
+include("utilities.jl")
 include("toppush.jl")
 include("patmat.jl")
 include("svm.jl")
