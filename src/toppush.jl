@@ -1,38 +1,8 @@
-abstract type AbstractTopPush{S<:Surrogate} <: Model end
-
 function permutation(::AbstractTopPush, y::BitVector)
     perm_α = findall(y)
     perm_β = findall(.~y)
 
     return length(perm_α), length(perm_β), vcat(perm_α, perm_β)
-end
-
-struct TPRule{T<:Real}
-    L::T
-    Δ::T
-    num::T
-    den::T
-    Δlb::T
-    Δub::T
-    k::Int
-    l::Int
-
-    function TPRule(
-        ::AbstractTopPush,
-        ::KernelMatrix,
-        num::T,
-        den::Real,
-        lb::Real,
-        ub::Real,
-        k::Int,
-        l::Int,
-    ) where T
-        
-        Δ = min(max(lb, - num/den), ub)
-        L = - den*Δ^2/2 - num*Δ
-
-        return new{T}(L, Δ, num, den, lb, ub, k, l)
-    end
 end
 
 function extract_scores(model::AbstractTopPush, K::KernelMatrix)
@@ -140,7 +110,7 @@ end
 
 function initialization!(model::AbstractTopPush, K::KernelMatrix)
     T = eltype(K)
-    α, β = projection(model, K, rand(T, K.nα), rand(T, K.nβ))
+    α, β = projection(model, K, rand(T, K.nα), zeros(T, K.nβ))
     αβ = vcat(α, β)
 
     model.state.s = K * αβ
@@ -228,8 +198,7 @@ end
 # ------------------------------------------------------------------------------------------
 # Update rules and objectives
 # ------------------------------------------------------------------------------------------
-# Hinge loss
-function objective(model::AbstractTopPush{<:Hinge}, K::KernelMatrix)
+function objective(model::AbstractTopPush{S}, K::KernelMatrix) where {S<:Surrogate}
     @unpack s, αβ = model.state
     ϑ, C = model.l.ϑ, model.C
 
@@ -240,11 +209,16 @@ function objective(model::AbstractTopPush{<:Hinge}, K::KernelMatrix)
 
     # objectives
     L_primal = w_norm + C*sum(value.(model.l, t .- sα))
-    L_dual = - w_norm + sum(α)/ϑ
+    if S <: Hinge
+        L_dual = - w_norm + sum(α)/ϑ
+    else
+        L_dual = - w_norm + sum(α)/ϑ - sum(abs2, α)/(4*ϑ*C)
+    end
 
     return L_primal, L_dual, L_primal - L_dual
 end
 
+# Hinge loss
 function rule_αα(model::AbstractTopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
@@ -254,75 +228,44 @@ function rule_αα(model::AbstractTopPush{<:Hinge}, K::KernelMatrix, k::Int, l::
     lb = max(- αβ[k], αβ[l] - ϑ*C)
     ub = min(ϑ*C - αβ[k], αβ[l])
 
-    return TPRule(model, K, num, den, lb, ub, k, l)
+    return UpdateRule(num, den, lb, ub, k, l)
 end
 
 function rule_αβ(model::AbstractTopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
-    @unpack s, αβ, αsum, βsort = model.state
-    C, ϑ = model.C, model.l.ϑ
-    βmax = find_βmax(βsort, αβ[l])
-    Km = model_K(model, K)
-
-    num = s[k] + s[l] - 1/ϑ
-    den = K[k, k] + 2*K[k, l] + K[l, l]
-    lb = max(- αβ[k], - αβ[l], Km*βmax - αsum)
-    ub = min(ϑ*C - αβ[k], (αsum - Km*αβ[l])/(Km - 1))
-
-    return TPRule(model, K, num, den, lb, ub, k, l)
-end
-
-function rule_αβ(model::TopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
-    @unpack s, αβ = model.state
+    @unpack s, αβ, αsum = model.state
     C, ϑ = model.C, model.l.ϑ
 
     num = s[k] + s[l] - 1/ϑ
     den = K[k, k] + 2*K[k, l] + K[l, l]
-    lb = max(- αβ[k], - αβ[l])
-    ub = ϑ*C - αβ[k]
-
-    return TPRule(model, K, num, den, lb, ub, k, l)
+    if isa(model, TopPush)
+        lb = max(- αβ[k], - αβ[l])
+        ub = ϑ*C - αβ[k]
+    else
+        βmax = find_βmax(model.state.βsort, αβ[l])
+        Km = model_K(model, K)
+        lb = max(- αβ[k], - αβ[l], Km*βmax - αsum)
+        ub = min(ϑ*C - αβ[k], (αsum - Km*αβ[l])/(Km - 1))
+    end
+    return UpdateRule(num, den, lb, ub, k, l)
 end
 
 function rule_ββ(model::AbstractTopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ, αsum = model.state
-    Km = model_K(model, K)
 
     num = s[k] - s[l]
     den = K[k, k] - 2*K[k, l] + K[l, l]
-    lb = max(- αβ[k], αβ[l] - αsum/Km)
-    ub = min(αsum/Km - αβ[k], αβ[l])
-
-    return TPRule(model, K, num, den, lb, ub, k, l)
-end
-
-function rule_ββ(model::TopPush{<:Hinge}, K::KernelMatrix, k::Int, l::Int)
-    @unpack s, αβ = model.state
-
-    num = s[k] - s[l]
-    den = K[k, k] - 2*K[k, l] + K[l, l]
-    lb = - αβ[k]
-    ub = αβ[l]
-
-    return TPRule(model, K, num, den, lb, ub, k, l)
+    if isa(model, TopPush)
+        lb = - αβ[k]
+        ub = αβ[l]
+    else
+        Km = model_K(model, K)
+        lb = max(- αβ[k], αβ[l] - αsum/Km)
+        ub = min(αsum/Km - αβ[k], αβ[l])
+    end
+    return UpdateRule(num, den, lb, ub, k, l)
 end
 
 # Quadratic loss
-function objective(model::AbstractTopPush{<:Quadratic}, K::KernelMatrix)
-    @unpack s, αβ = model.state
-    ϑ, C = model.l.ϑ, model.C
-
-    α = αβ[inds_α(K)]
-    sα = s[inds_α(K)]
-    w_norm = s'*αβ/2
-    t = threshold(model, K)
-
-    # objectives
-    L_primal = w_norm + C*sum(value.(model.l, t .- sα))
-    L_dual = - w_norm + sum(α)/ϑ - sum(abs2, α)/(4*ϑ*C)
-
-    return L_primal, L_dual, L_primal - L_dual
-end
-
 function rule_αα(model::AbstractTopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ = model.state
     C, ϑ = model.C, model.l.ϑ
@@ -332,54 +275,39 @@ function rule_αα(model::AbstractTopPush{<:Quadratic}, K::KernelMatrix, k::Int,
     lb = - αβ[k]
     ub = αβ[l]
 
-    return TPRule(model, K, num, den, lb, ub, k, l)
+    return UpdateRule(num, den, lb, ub, k, l)
 end
 
 function rule_αβ(model::AbstractTopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
-    @unpack s, αβ, αsum, βsort = model.state
-    C, ϑ = model.C, model.l.ϑ
-    βmax = find_βmax(βsort, αβ[l])
-    Km = model_K(model, K)
-
-    num = s[k] + s[l] - 1/ϑ + αβ[k]/(2*C*ϑ^2)
-    den = K[k, k] + 2*K[k, l] + K[l, l] + 1/(2*C*ϑ^2)
-    lb = max(- αβ[k], - αβ[l], Km*βmax - αsum)
-    ub = (αsum - Km*αβ[l])/(Km - 1)
-
-    return TPRule(model, K, num, den, lb, ub, k, l)
-end
-
-function rule_αβ(model::TopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
-    @unpack s, αβ = model.state
+    @unpack s, αβ, αsum = model.state
     C, ϑ = model.C, model.l.ϑ
 
     num = s[k] + s[l] - 1/ϑ + αβ[k]/(2*C*ϑ^2)
     den = K[k, k] + 2*K[k, l] + K[l, l] + 1/(2*C*ϑ^2)
-    lb = max(- αβ[k], - αβ[l])
-    ub = eltype(s)(Inf)
-
-    return TPRule(model, K, num, den, lb, ub, k, l)
+    if isa(model, TopPush)
+        lb = max(- αβ[k], - αβ[l])
+        ub = eltype(s)(Inf)
+    else
+        βmax = find_βmax(model.state.βsort, αβ[l])
+        Km = model_K(model, K)
+        lb = max(- αβ[k], - αβ[l], Km*βmax - αsum)
+        ub = (αsum - Km*αβ[l])/(Km - 1)
+    end
+    return UpdateRule(num, den, lb, ub, k, l)
 end
 
 function rule_ββ(model::AbstractTopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
     @unpack s, αβ, αsum = model.state
-    Km = model_K(model, K)
 
     num = s[k] - s[l]
     den = K[k, k] - 2*K[k, l] + K[l, l]
-    lb = max(- αβ[k], αβ[l] - αsum/Km)
-    ub = min(αsum/Km - αβ[k], αβ[l])
-
-    return TPRule(model, K, num, den, lb, ub, k, l)
-end
-
-function rule_ββ(model::TopPush{<:Quadratic}, K::KernelMatrix, k::Int, l::Int)
-    @unpack s, αβ = model.state
-
-    num = s[k] - s[l]
-    den = K[k, k] - 2*K[k, l] + K[l, l]
-    lb = - αβ[k]
-    ub = αβ[l]
-
-    return TPRule(model, K, num, den, lb, ub, k, l)
+    if isa(model, TopPush)
+        lb = - αβ[k]
+        ub = αβ[l]
+    else
+        Km = model_K(model, K)
+        lb = max(- αβ[k], αβ[l] - αsum/Km)
+        ub = min(αsum/Km - αβ[k], αβ[l])
+    end
+    return UpdateRule(num, den, lb, ub, k, l)
 end

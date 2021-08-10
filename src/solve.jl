@@ -1,29 +1,3 @@
-function update!(model::Model, K::KernelMatrix; k  = rand(1:K.n))
-    best = (; L = -Inf, Δ = 0, k = k, l = k)
-    K[k,1]
-    for l in 1:K.n
-        l == k && continue
-        update = if k <= K.nα && l <= K.nα
-            rule_αα(model, K, k, l)
-        elseif k <= K.nα && l > K.nα
-            rule_αβ(model, K, k, l)
-        elseif k > K.nα && l <= K.nα
-            rule_αβ(model, K, l, k)
-        else
-            rule_ββ(model, K, k, l)
-        end
-        if update.L > best.L
-            best = update
-        elseif update.L == best.L
-            if rand(Bool)
-                best = update
-            end
-        end
-    end
-    update!(model, K, best)
-    return k == best.l ? (best.Δ, best.l, best.k) : (best.Δ, best.k, best.l)
-end
-
 function log!(hist, model, K, iter, k, l, Δ; at = 1000)
     T = eltype(K)
     append!(get!(hist, :iter, Int[]), iter)

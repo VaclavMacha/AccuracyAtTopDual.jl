@@ -1,5 +1,3 @@
-abstract type AbstractPatMat{S<:Surrogate} <: Model end
-
 compute_Δ(num, den, lb, ub) = min(max(lb, - num/den), ub)
 
 struct PMRule{T<:Real}
