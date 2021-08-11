@@ -70,10 +70,6 @@ threshold(model::TopPush, K::KernelMatrix) = - minimum(model.state.s[inds_β(K)]
 # ------------------------------------------------------------------------------------------
 # Auxilliary functions 
 # ------------------------------------------------------------------------------------------
-function Base.show(io::IO, model::M) where {M<:AbstractTopPush}
-    print(io, M.name.name, "(", join(parameters(model), ", "), ")")
-end
-
 function initialization!(model::TopPush, K::KernelMatrix)
     T = eltype(K)
 
@@ -82,14 +78,15 @@ function initialization!(model::TopPush, K::KernelMatrix)
     return
 end
 
-function initialization!(model::AbstractTopPush{S}, K::KernelMatrix) where S
+function initialization!(model::AbstractTopPush{S}, K::KernelMatrix) where {S <: Surrogate}
     T = eltype(K)
-
     α, β, Km = rand(T, K.nα), zeros(T, K.nβ), model_K(model, K)
     if S <: Hinge
         α, β = projection(α, β, model.l.ϑ*model.C, Km)
-    else
+    elseif S <: Quadratic
         α, β = projection(α, β, Km)
+    else
+        throw(ArgumentError("$(S.name.name) surrogate function is not supported"))
     end
     αβ = vcat(α, β)
 
@@ -113,32 +110,6 @@ function add_params!(solution, model::AbstractTopPush{S}) where {S<:Surrogate}
     return 
 end
 
-function update!(model::AbstractTopPush, K::KernelMatrix, update)
-    iszero(update.Δ) && return
-    @unpack k, l, Δ = update
-
-    y = (k <= K.nα && l > K.nα) ? -1 : 1
-    if !isa(model, TopPush)
-        @unpack αβ, βsort = model.state
-        if k > K.nα
-            deleteat!(βsort, searchsortedfirst(βsort, αβ[k]; rev = true))
-            insert!(βsort, searchsortedfirst(βsort, αβ[k] + Δ; rev = true), αβ[k] + Δ)
-        end
-        if l > K.nα
-            deleteat!(βsort, searchsortedfirst(βsort, αβ[l]; rev = true))
-            insert!(βsort, searchsortedfirst(βsort, αβ[l] - y*Δ; rev = true), αβ[l] - y*Δ)
-        end
-        if k <= K.nα && l > K.nα
-            model.state.αsum += Δ
-        end
-    end
-
-    model.state.s .+= Δ .* (K[k, :] - y*K[l, :])
-    model.state.αβ[k] += Δ
-    model.state.αβ[l] -= y*Δ
-    return 
-end
-
 function permutation(::AbstractTopPush, y::BitVector)
     perm_α = findall(y)
     perm_β = findall(.~y)
@@ -152,7 +123,7 @@ function extract_scores(model::AbstractTopPush, K::KernelMatrix)
     return s[invperm(K.perm)]
 end
 
-function extract_params(model::AbstractTopPush, K::KernelMatrix)
+function extract_state(model::AbstractTopPush, K::KernelMatrix)
     αβ = copy(model.state.αβ)
     return  (α = αβ[inds_α(K)], β = αβ[inds_β(K)])
 end
@@ -201,7 +172,7 @@ function rule_αβ(model::AbstractTopPush{<:Hinge}, K::KernelMatrix, k::Int, l::
         lb = max(- αβ[k], - αβ[l])
         ub = ϑ*C - αβ[k]
     else
-        βmax = find_βmax(model.state.βsort, αβ[l])
+        βmax = find_βmax(model, αβ[l])
         Km = model_K(model, K)
         lb = max(- αβ[k], - αβ[l], Km*βmax - αsum)
         ub = min(ϑ*C - αβ[k], (αsum - Km*αβ[l])/(Km - 1))
@@ -250,7 +221,7 @@ function rule_αβ(model::AbstractTopPush{<:Quadratic}, K::KernelMatrix, k::Int,
         lb = max(- αβ[k], - αβ[l])
         ub = eltype(s)(Inf)
     else
-        βmax = find_βmax(model.state.βsort, αβ[l])
+        βmax = find_βmax(model, αβ[l])
         Km = model_K(model, K)
         lb = max(- αβ[k], - αβ[l], Km*βmax - αsum)
         ub = (αsum - Km*αβ[l])/(Km - 1)

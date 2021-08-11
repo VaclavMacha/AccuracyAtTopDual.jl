@@ -17,7 +17,11 @@ abstract type Model end
 abstract type AbstractTopPush{S<:Surrogate} <: Model end
 abstract type AbstractPatMat{S<:Surrogate} <: Model end
 
-export Hinge, Quadratic, KernelType, Linear, Gaussian, init
+function Base.show(io::IO, model::M) where {M<:Model}
+    print(io, M.name.name, "(", join(parameters(model), ", "), ")")
+end
+
+export Hinge, Quadratic, KernelType, Linear, Gaussian
 export Model, TopPush, TopPushK, τFPL, SVM, PatMat, PatMatNP
 export solve!, predict
 

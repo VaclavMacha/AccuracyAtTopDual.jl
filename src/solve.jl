@@ -18,7 +18,7 @@ function log!(hist, model, K, iter, k, l, Δ; at = 1000)
     
     if mod(iter, at) == 0
         d = get!(hist, :train, Dict{Int, NamedTuple}())
-        d[iter] = (; s = extract_scores(model, K), extract_params(model, K)...)
+        d[iter] = (; s = extract_scores(model, K), extract_state(model, K)...)
     end
     return
 end
@@ -44,7 +44,7 @@ function solve!(
     @time initialization!(model, K)
 
     # progress bar and history
-    bar = Progress(maxiter, 1, "Training: ")
+    bar = Progress(maxiter, 1, "$(model): ")
     k = rand(1:K.n)
     l = k
     Δ = zero(T)
@@ -95,7 +95,7 @@ function solve!(
     # evaluation
     @info "Evaluation"
     @time hist[:solution] = Dict{Symbol, NamedTuple}(
-        :train => (; y, s = extract_scores(model, K), extract_params(model, K)...)
+        :train => (; y, s = extract_scores(model, K), extract_state(model, K)...)
     )
     return hist
 end
