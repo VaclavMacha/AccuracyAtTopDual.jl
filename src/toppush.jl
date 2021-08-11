@@ -20,7 +20,7 @@ struct TopPushK{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
 end
 
 function parameters(m::TopPushK{S}) where {S<:Surrogate}
-    return (K = m.K, C = m.C, l = S.name.name, ϑ = m.l.ϑ)
+    return (K = m.K, C = m.C, surrogates = S.name.name, ϑ = m.l.ϑ)
 end
 model_K(model::TopPushK, ::KernelMatrix) = model.K
 
@@ -43,7 +43,7 @@ struct τFPL{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
 end
 
 function parameters(m::τFPL{S}) where {S<:Surrogate}
-    return (τ = m.τ, C = m.C, l = S.name.name, ϑ = m.l.ϑ)
+    return (τ = m.τ, C = m.C, surrogate = S.name.name, ϑ = m.l.ϑ)
 end
 model_K(model::τFPL, K::KernelMatrix) = max(1, round(Int, model.τ * K.nβ))
 
@@ -68,7 +68,9 @@ struct TopPush{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
     end
 end
 
-parameters(m::TopPush{S}) where {S<:Surrogate} = (C = m.C, l = S.name.name, ϑ = m.l.ϑ)
+function parameters(m::TopPush{S}) where {S<:Surrogate}
+    return (C = m.C, surrogate = S.name.name, ϑ = m.l.ϑ)
+end
 threshold(model::TopPush, K::KernelMatrix) = - minimum(model.state.s[inds_β(K)])
 
 # ------------------------------------------------------------------------------------------

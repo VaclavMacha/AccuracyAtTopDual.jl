@@ -29,6 +29,18 @@ struct History{T<:Real}
     solution::Dict{Symbol, NamedTuple}
 end
 
+function Base.show(io::IO, h::History)
+    print(io, "History: $(h.model)", values(h.params), " with ", h.kernel, " kernel")
+end
+
+function Base.Dict(h::History)
+    d = Dict(key => getproperty(h, key) for key in fieldnames(History))
+    for key in keys(d[:params])
+        d[key] = getproperty(d[:params], key)
+    end
+    return d
+end
+
 function History(
     model::M,
     ker::KernelType{T, D},

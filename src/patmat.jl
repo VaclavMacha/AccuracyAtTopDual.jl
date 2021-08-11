@@ -44,7 +44,7 @@ struct PatMatNP{S<:Surrogate, T<:Real} <: AbstractPatMat{S}
 end
 
 function parameters(m::AbstractPatMat{S}) where {S<:Surrogate}
-    return (τ = m.τ, C = m.C, l = S.name.name, ϑ1 = m.l1.ϑ, ϑ2 = m.l2.ϑ)
+    return (τ = m.τ, C = m.C, surrogate = S.name.name, ϑ1 = m.l1.ϑ, ϑ2 = m.l2.ϑ)
 end
 
 function threshold(model::AbstractPatMat, K::KernelMatrix)
