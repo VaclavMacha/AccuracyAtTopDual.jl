@@ -44,7 +44,7 @@ struct PatMatNP{S<:Surrogate, T<:Real} <: AbstractPatMat{S}
 end
 
 function parameters(m::AbstractPatMat{S}) where {S<:Surrogate}
-    return (m.τ, m.C, S.name.name, m.l1.ϑ, m.l2.ϑ)
+    return (τ = m.τ, C = m.C, l = S.name.name, ϑ1 = m.l1.ϑ, ϑ2 = m.l2.ϑ)
 end
 
 function threshold(model::AbstractPatMat, K::KernelMatrix)
@@ -76,16 +76,6 @@ function initialization!(model::AbstractPatMat{S}, K::KernelMatrix) where {S <: 
     model.state.δ = δ
     model.state.βsort = sort(αβ[inds_β(K)], rev = true)
     return
-end
-
-function add_params!(solution, model::AbstractPatMat{S}) where {S<:Surrogate}
-    get!(solution, :model, typeof(model).name.name)
-    get!(solution, :τ, model.τ)
-    get!(solution, :C, model.C)
-    get!(solution, :surrogate, S.name.name)
-    get!(solution, :ϑ1, model.l1.ϑ)
-    get!(solution, :ϑ2, model.l2.ϑ)
-    return 
 end
 
 function permutation(::PatMat, y::BitVector)
@@ -248,8 +238,8 @@ function rule_αβ(model::AbstractPatMat{<:Quadratic}, K::KernelMatrix, k::Int, 
 
     Δ = compute_Δ(num, den, lb, ub)
     δnew = sqrt(max(δ^2 + (Δ^2 + 2*Δ*αβ[l])/(4*ϑ2^2*n*τ), 0))
-    num -= (1/δ - 1/δnew)*αβ[l]/(2*ϑ2^2)
-    den -= (1/δ - 1/δnew)/(2*ϑ2^2)
+    # num -= (1/δ - 1/δnew)*αβ[l]/(2*ϑ2^2)
+    # den -= (1/δ - 1/δnew)/(2*ϑ2^2)
 
     return UpdateRule(model, K, num, den, lb, ub, k, l, δnew)
 end
@@ -266,8 +256,8 @@ function rule_ββ(model::AbstractPatMat{<:Quadratic}, K::KernelMatrix, k::Int, 
 
     Δ = compute_Δ(num, den, lb, ub)
     δnew = sqrt(max(δ^2 + (Δ^2 + Δ*(αβ[k] - αβ[l]))/(2*ϑ2^2*n*τ), 0))
-    num -= (1/δ - 1/δnew)*(αβ[k] - αβ[l])/(2*ϑ2^2)
-    den -= (1/δ - 1/δnew)/(ϑ2^2)
+    # num -= (1/δ - 1/δnew)*(αβ[k] - αβ[l])/(2*ϑ2^2)
+    # den -= (1/δ - 1/δnew)/(ϑ2^2)
 
     return UpdateRule(model, K, num, den, lb, ub, k, l, δnew)
 end

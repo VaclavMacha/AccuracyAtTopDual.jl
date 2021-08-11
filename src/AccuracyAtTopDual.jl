@@ -18,7 +18,7 @@ abstract type AbstractTopPush{S<:Surrogate} <: Model end
 abstract type AbstractPatMat{S<:Surrogate} <: Model end
 
 function Base.show(io::IO, model::M) where {M<:Model}
-    print(io, M.name.name, "(", join(parameters(model), ", "), ")")
+    print(io, M.name.name, values(parameters(model)))
 end
 
 export Hinge, Quadratic, KernelType, Linear, Gaussian

@@ -19,7 +19,9 @@ struct TopPushK{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
     end
 end
 
-parameters(m::TopPushK{S}) where {S<:Surrogate} = (m.K, m.C, S.name.name, m.l.ϑ)
+function parameters(m::TopPushK{S}) where {S<:Surrogate}
+    return (K = m.K, C = m.C, l = S.name.name, ϑ = m.l.ϑ)
+end
 model_K(model::TopPushK, ::KernelMatrix) = model.K
 
 struct τFPL{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
@@ -40,7 +42,9 @@ struct τFPL{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
     end
 end
 
-parameters(m::τFPL{S}) where {S<:Surrogate} = (m.τ, m.C, S.name.name, m.l.ϑ)
+function parameters(m::τFPL{S}) where {S<:Surrogate}
+    return (τ = m.τ, C = m.C, l = S.name.name, ϑ = m.l.ϑ)
+end
 model_K(model::τFPL, K::KernelMatrix) = max(1, round(Int, model.τ * K.nβ))
 
 function threshold(model::AbstractTopPush, K::KernelMatrix)
@@ -64,7 +68,7 @@ struct TopPush{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
     end
 end
 
-parameters(m::TopPush{S}) where {S<:Surrogate} = (m.C, S.name.name, m.l.ϑ)
+parameters(m::TopPush{S}) where {S<:Surrogate} = (C = m.C, l = S.name.name, ϑ = m.l.ϑ)
 threshold(model::TopPush, K::KernelMatrix) = - minimum(model.state.s[inds_β(K)])
 
 # ------------------------------------------------------------------------------------------
@@ -95,19 +99,6 @@ function initialization!(model::AbstractTopPush{S}, K::KernelMatrix) where {S <:
     model.state.αsum = sum(αβ[inds_α(K)])
     model.state.βsort = sort(αβ[inds_β(K)], rev = true)
     return
-end
-
-function add_params!(solution, model::AbstractTopPush{S}) where {S<:Surrogate}
-    get!(solution, :model, typeof(model).name.name)
-    if isa(model, TopPushK)
-        get!(solution, :K, model.K)
-    elseif isa(model, τFPL)
-        get!(solution, :τ, model.τ)
-    end
-    get!(solution, :C, model.C)
-    get!(solution, :surrogate, S.name.name)
-    get!(solution, :ϑ, model.l.ϑ)
-    return 
 end
 
 function permutation(::AbstractTopPush, y::BitVector)

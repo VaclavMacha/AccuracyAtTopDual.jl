@@ -1,26 +1,100 @@
-function log!(hist, model, K, iter, k, l, Δ; at = 1000)
-    T = eltype(K)
-    append!(get!(hist, :iter, Int[]), iter)
-    append!(get!(hist, :k, Int[]), k)
-    append!(get!(hist, :l, Int[]), l)
-    append!(get!(hist, :delta, T[]), Δ)
+struct History{T<:Real}
+    # model setings
+    model::Symbol
+    params::NamedTuple
     
-    if iter == 0 || Δ != 0
+    # kernel settings
+    kernel::Symbol
+    γ::T
+    scale::Bool
+    mlkernels::Bool 
+    precomputed::Bool 
+    
+    # solver settings
+    maxiter::Int 
+    at::Int
+    seed::Int
+    pupdate::T
+    ε::T
+
+    # history
+    iter::Vector{Int}
+    k::Vector{Int}
+    l::Vector{Int}
+    Δ::Vector{T}
+    Lprimal::Vector{T}
+    Ldual::Vector{T}
+    gap::Vector{T}
+    train::Dict{Int, NamedTuple}
+    solution::Dict{Symbol, NamedTuple}
+end
+
+function History(
+    model::M,
+    ker::KernelType{T, D},
+    seed;
+    maxiter = 20000,
+    at = max(1, round(Int, maxiter/100)),
+    pupdate = 0.9,
+    ε::Real = 1e-4,
+    kwargs...
+) where {T<:Real, M<:Model, D<:Kernel}
+
+    bar = Progress(maxiter, 1, "⋅ Training: ")
+
+    return bar, History{T}(
+        M.name.name,
+        parameters(model),
+        D.name.name,
+        ker.γ,
+        ker.scale,
+        ker.mlkernels,
+        ker.precomputed, 
+        maxiter,
+        at,
+        seed,
+        pupdate,
+        ε,
+        Int[0],
+        Int[0],
+        Int[0],
+        Int[0],
+        T[],
+        T[],
+        T[],
+        Dict{Int, NamedTuple}(),
+        Dict{Symbol, NamedTuple}(),
+    )
+end
+
+function log!(h::History, model, K, iter, k, l, Δ)
+    append!(h.iter, iter)
+    append!(h.k, k)
+    append!(h.l, l)
+    append!(h.Δ, Δ)
+    if Δ != 0 || iter == 0
         Lprimal, Ldual, gap = objective(model, K)
-        append!(get!(hist, :Lprimal, T[]), Lprimal)
-        append!(get!(hist, :Ldual, T[]), Ldual)
-        append!(get!(hist, :gap, T[]), gap)
     else
-        append!(hist[:Lprimal], hist[:Lprimal][end])
-        append!(hist[:Ldual], hist[:Ldual][end])
-        append!(hist[:gap], hist[:gap][end])
+        Lprimal, Ldual, gap = h.Lprimal[end], h.Ldual[end], h.gap[end]
     end
-    
-    if mod(iter, at) == 0
-        d = get!(hist, :train, Dict{Int, NamedTuple}())
-        d[iter] = (; s = extract_scores(model, K), extract_state(model, K)...)
+    append!(h.Lprimal, Lprimal)
+    append!(h.Ldual, Ldual)
+    append!(h.gap, gap)
+    if mod(iter, h.at) == 0
+        h.train[iter] = (; s = extract_scores(model, K), extract_state(model, K)...)
     end
-    return
+    return [
+        (:L_primal, Lprimal),
+        (:L_dual, Ldual),
+        (:gap, gap),
+        (:iter, iter),
+        (:stop, gap/h.gap[1]),
+    ]
+end
+
+function terminate(h::History)
+    g0, g = h.gap[1], h.gap[end]
+    return isnan(g) || isinf(g) || g/g0 <= h.ε
 end
 
 function solve!(
@@ -28,44 +102,29 @@ function solve!(
     X::Matrix{T},
     y,
     ker::KernelType{T, D};
-    maxiter = 20000,
     seed = 1234,
-    pupdate = 0.9,
-    ε::Real = 1e-4,
-    at = max(1, round(Int, maxiter/100)),
+    kwargs...
 ) where {T<:Real, D <: Kernel}
 
-    
     # initialization
-    @info "Initialization"
-    Random.seed!(seed)
-    kernel = init(ker, size(X, 2))
-    @time K = KernelMatrix(model, X, y, kernel; precomputed = ker.precomputed)
-    @time initialization!(model, K)
+    printstyled("$(model): \n"; color=:magenta, bold=true)
+    printstyled("⋅ Initialization: "; color=:green)
+    tm = @timed begin
+        Random.seed!(seed)
+        kernel = init(ker, size(X, 2))
+        K = KernelMatrix(model, X, y, kernel; precomputed = ker.precomputed)
+        initialization!(model, K)
+    end
+    printstyled(ProgressMeter.durationstring(tm.time), " \n"; color=:green)
 
     # progress bar and history
-    bar = Progress(maxiter, 1, "$(model): ")
-    k = rand(1:K.n)
-    l = k
-    Δ = zero(T)
-    vals = []
-    hist = Dict{Symbol, Any}(
-        :precomputed => ker.precomputed, 
-        :maxiter => maxiter, 
-        :seed => seed, 
-        :kernel => D,
-        :γ => ker.γ,
-        :scale => ker.scale,
-        :mlkernels => ker.mlkernels, 
-        :pupdate => pupdate,
-        :ε => ε,
-    )
-    add_params!(hist, model)
-    log!(hist, model, K, 0, 0, 0, 0; at)
+    bar, history = History(model, ker, seed; kwargs...)
+    k, l, Δ = 0, 0, zero(T)
+    vals = log!(history, model, K, 0, k, l, Δ)
 
     # train
-    for iter in 1:maxiter
-        k = if Δ == 0 || rand() > pupdate
+    for iter in 1:history.maxiter
+        k = if Δ == 0 || rand() > history.pupdate
             rand(1:K.n)
         else
             l
@@ -73,31 +132,21 @@ function solve!(
         Δ, k, l = update!(model, K; k)
 
         # update progress bar
-        log!(hist, model, K, iter, k, l, Δ; at)
-        g0 = hist[:gap][1]
-        g = hist[:gap][end]
-        vals = [
-            (:L_primal, hist[:Lprimal][end]),
-            (:L_dual, hist[:Ldual][end]),
-            (:gap, g),
-            (:iter, iter),
-            (:stop, g/g0),
-        ]
+        vals = log!(history, model, K, iter, k, l, Δ)
         next!(bar; showvalues = vals)
 
         # stop condition
-        g/g0 <= ε && break
-        isnan(g) && break
-        isinf(g) && break
+        terminate(history) && break
     end
     finish!(bar; showvalues = vals)
 
     # evaluation
-    @info "Evaluation"
-    @time hist[:solution] = Dict{Symbol, NamedTuple}(
-        :train => (; y, s = extract_scores(model, K), extract_state(model, K)...)
-    )
-    return hist
+    printstyled("⋅ Evaluation: "; color=:green)
+    tm = @timed begin
+        history.solution[:train] = (;y, s = extract_scores(model, K), extract_state(model, K)...)
+    end
+    printstyled(ProgressMeter.durationstring(tm.time), " \n\n"; color=:green)
+    return history
 end
 
 function predict(
@@ -130,54 +179,49 @@ function solve!(
     y,
     ker::KernelType{T, D};
     seed = 1234,
-    ε::Real = 1e-8,
     kwargs...
 ) where {T<:Real, D <: Kernel}
 
     # initialization
-    @info "Initialization"
-    Random.seed!(seed)
-    y_int = Int.(y)
-    @time if ker.precomputed
-        kernel = init(ker, size(X, 2))
-        K = kernelmatrix(kernel, X)
-        kernel_type = LIBSVM.Kernel.Precomputed
-    else
-        K = X'
-        kernel_type = get_kernel(D)
+    printstyled("$(model): \n"; color=:magenta, bold=true)
+    printstyled("⋅ Initialization: "; color=:green)
+    tm = @timed begin
+        Random.seed!(seed)
+        if ker.precomputed
+            kernel = init(ker, size(X, 2))
+            K = kernelmatrix(kernel, X)
+            kernel_type = LIBSVM.Kernel.Precomputed
+        else
+            K = X'
+            kernel_type = get_kernel(D)
+        end
     end
+    printstyled(ProgressMeter.durationstring(tm.time), " \n"; color=:green)
 
-    # history
-    hist = Dict{Symbol, Any}(
-        :precomputed => ker.precomputed, 
-        :seed => seed, 
-        :kernel => D,
-        :γ => ker.γ,
-        :scale => ker.scale,
-        :mlkernels => ker.mlkernels,
-        :ε => ε,
-    )
-    add_params!(hist, model)
-
-    # train 
-    @info "Training"
-    @time svm_model = LIBSVM.svmtrain(
-        K,
-        y_int;
-        probability = true,
-        cost = Float64(model.C),
-        gamma = Float64(compute_gamma(ker, size(X, 2))),
-        kernel = kernel_type,
-        epsilon = Float64(ε),
-    )
-    model.state = svm_model
+    # train
+    printstyled("⋅ Training: "; color=:green)
+    tm = @timed begin
+        ~, history = History(model, ker, seed; kwargs...)
+        svm_model = LIBSVM.svmtrain(
+            K,
+            Int.(y);
+            probability = true,
+            cost = Float64(model.C),
+            gamma = Float64(compute_gamma(ker, size(X, 2))),
+            kernel = kernel_type,
+            epsilon = Float64(history.ε),
+        )
+        model.state = svm_model
+    end
+    printstyled(ProgressMeter.durationstring(tm.time), " \n"; color=:green)
 
     # evaluation
-    @info "Evaluation"
-    @time hist[:solution] = Dict{Symbol, NamedTuple}(
-        :train => (; y, s = LIBSVM.svmpredict(model.state, K)[2][2, :])
-    )
-    return hist
+    printstyled("⋅ Evaluation: "; color=:green)
+    tm = @timed begin
+        history.solution[:train] = (;y, s = extract_scores(model, K))
+    end
+    printstyled(ProgressMeter.durationstring(tm.time), " \n\n"; color=:green)
+    return history
 end
 
 function predict(
@@ -195,10 +239,10 @@ function predict(
         s = zeros(T, size(Xtest, 1))
         for rows in partition(1:size(Xtest, 1), chunksize)
             K = kernelmatrix(kernel, X, Xtest[rows, :])
-            s[rows] .= LIBSVM.svmpredict(model.state, K)[2][2, :]
+            s[rows] .= extract_scores(model, K)
         end
     else
-        s = LIBSVM.svmpredict(model.state, Xtest')[2][2, :]
+        s = extract_scores(model, Xtest)
     end
     return s
 end
