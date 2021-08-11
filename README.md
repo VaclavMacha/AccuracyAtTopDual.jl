@@ -39,7 +39,7 @@ kernel = KernelType(Gaussian; γ = 1, scale = true, precomputed = false, T)
 julia> h = solve!(model, Xtrain, ytrain, kernel; maxiter = 20000, seed = 123, ε = 1e-4)
 TopPush(1.0, Quadratic, 1.0): 
 ⋅ Initialization: 0:00:00 
-⋅ Training: 100%|████████████████████████████████████████████████████████████████████████| Time: 0:00:15
+⋅ Training: 100%|███████████████████████████████████████████████████████| Time: 0:00:15
   L_primal:  325.42047
   L_dual:    325.2755
   gap:       0.1449585
