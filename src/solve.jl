@@ -254,7 +254,7 @@ function predict(
             s[rows] .= extract_scores(model, K)
         end
     else
-        s = extract_scores(model, Xtest)
+        s = extract_scores(model, Xtest')
     end
     return s
 end
