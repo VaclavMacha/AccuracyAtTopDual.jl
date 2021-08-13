@@ -157,7 +157,7 @@ function solve!(
     tm = @timed begin
         history.solution[:train] = (;y, s = extract_scores(model, K), extract_state(model, K)...)
     end
-    printstyled(ProgressMeter.durationstring(tm.time), " \n\n"; color=:green)
+    printstyled(ProgressMeter.durationstring(tm.time), " \n"; color=:green)
     return history
 end
 
@@ -232,7 +232,7 @@ function solve!(
     tm = @timed begin
         history.solution[:train] = (;y, s = extract_scores(model, K))
     end
-    printstyled(ProgressMeter.durationstring(tm.time), " \n\n"; color=:green)
+    printstyled(ProgressMeter.durationstring(tm.time), " \n"; color=:green)
     return history
 end
 
