@@ -40,8 +40,10 @@ end
 
 # KernelFunctions.jl
 function init_kf(::Type{Gaussian}, γ, T)
-    K = KernelFunctions.SqExponentialKernel
-    return K() ∘ KernelFunctions.ScaleTransform(T(sqrt(2)*sqrt(γ)))
+    return KernelFunctions.TransformedKernel(
+        KernelFunctions.SqExponentialKernel(),
+        KernelFunctions.ScaleTransform(T(sqrt(2)*sqrt(γ))),
+    )
 end
 
 init_kf(::Type{Linear}, γ, T) = KernelFunctions.LinearKernel()
