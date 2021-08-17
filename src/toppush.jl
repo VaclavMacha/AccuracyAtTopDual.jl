@@ -20,7 +20,7 @@ struct TopPushK{S<:Surrogate, T<:Real} <: AbstractTopPush{S}
 end
 
 function parameters(m::TopPushK{S}) where {S<:Surrogate}
-    return (K = m.K, C = m.C, surrogates = S.name.name, ϑ = m.l.ϑ)
+    return (K = m.K, C = m.C, surrogate = S.name.name, ϑ = m.l.ϑ)
 end
 model_K(model::TopPushK, ::KernelMatrix) = model.K
 
